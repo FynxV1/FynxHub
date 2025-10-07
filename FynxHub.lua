@@ -8,7 +8,7 @@ local buySeedEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Buy
 local buyGearEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyGear")
 
 local seeds = {"Cactus","Strawberry","Pumpkin","Sunflower","Dragonfruit","Eggplant","Watermelon","Grape","Cocotank","Carnivorous Plant","Mr Carrot","Tomatrio","Shroombino","Mango"}
-local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher"}
+local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Frost Blower"}
 
 local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
@@ -35,6 +35,194 @@ header.BackgroundColor3 = Color3.fromRGB(90,70,160)
 local title = Instance.new("TextLabel", header)
 title.Size = UDim2.new(1,-50,1,0)
 title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "FYNX HUB"
+title.TextColor3 = Color3.fromRGB(245,245,250)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local minBtn = Instance.new("TextButton", header)
+minBtn.Size = UDim2.new(0,40,0,28)
+minBtn.Position = UDim2.new(1,-50,0,6)
+minBtn.BackgroundColor3 = Color3.fromRGB(110,90,190)
+minBtn.Text = "-"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextColor3 = Color3.fromRGB(250,250,250)
+
+-- Tabs container
+local tabFrame = Instance.new("Frame", frame)
+tabFrame.Size = UDim2.new(1,-20,1,-120)
+tabFrame.Position = UDim2.new(0,10,0,50)
+tabFrame.BackgroundTransparency = 1
+
+-- Tab creation function
+local function createTab(titleText, parentFrame, items, selectedTable, yPos)
+    local tab = Instance.new("Frame", parentFrame)
+    tab.Size = UDim2.new(1,0,0,120)
+    tab.Position = UDim2.new(0,0,0,yPos)
+    tab.BackgroundColor3 = Color3.fromRGB(36,36,60)
+
+    local titleLabel = Instance.new("TextLabel", tab)
+    titleLabel.Size = UDim2.new(1,0,0,20)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = titleText
+    titleLabel.TextColor3 = Color3.fromRGB(240,240,250)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
+
+    local list = Instance.new("ScrollingFrame", tab)
+    list.Size = UDim2.new(1,-10,0,80)
+    list.Position = UDim2.new(0,5,0,25)
+    list.BackgroundTransparency = 1
+    list.CanvasSize = UDim2.new(0,0,#items*28)
+    list.ScrollBarThickness = 6
+
+    for i,name in ipairs(items) do
+        local btn = Instance.new("TextButton", list)
+        btn.Size = UDim2.new(1,-10,0,26)
+        btn.Position = UDim2.new(0,5,0,(i-1)*28)
+        btn.BackgroundColor3 = Color3.fromRGB(50,50,78)
+        btn.TextColor3 = Color3.fromRGB(240,240,250)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 13
+        btn.Text = name
+        btn.MouseButton1Click:Connect(function()
+            if selectedTable[name] then
+                selectedTable[name] = nil
+                btn.BackgroundColor3 = Color3.fromRGB(50,50,78)
+            else
+                selectedTable[name] = true
+                btn.BackgroundColor3 = Color3.fromRGB(110,90,210)
+            end
+        end)
+    end
+    return tab
+end
+
+local seedTab = createTab("🌱 Seeds", tabFrame, seeds, selectedSeeds, 0)
+local gearTab = createTab("⚙️ Gears", tabFrame, gears, selectedGears, 130)
+
+-- Start button
+local startBtn = Instance.new("TextButton", frame)
+startBtn.Size = UDim2.new(1,-20,0,36)
+startBtn.Position = UDim2.new(0,10,1,-46)
+startBtn.BackgroundColor3 = Color3.fromRGB(130,100,230)
+startBtn.Text = "▶ Start Auto Buy"
+startBtn.Font = Enum.Font.GothamBold
+startBtn.TextSize = 14
+startBtn.TextColor3 = Color3.fromRGB(20,20,20)
+
+-- Discord button
+local discordBtn = Instance.new("TextButton", frame)
+discordBtn.Size = UDim2.new(1,-20,0,28)
+discordBtn.Position = UDim2.new(0,10,1,-82) -- above Start button
+discordBtn.BackgroundColor3 = Color3.fromRGB(72,72,255)
+discordBtn.Text = "Join Discord"
+discordBtn.Font = Enum.Font.GothamBold
+discordBtn.TextSize = 14
+discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
+discordBtn.MouseButton1Click:Connect(function()
+    setclipboard("https://discord.gg/ReGmGrQT")
+end)
+
+-- Minimized logo
+local logo = Instance.new("TextButton", gui)
+logo.Size = UDim2.new(0,50,0,50)
+logo.Position = UDim2.new(0.5,-25,0.5,-25)
+logo.Text = "F"
+logo.Font = Enum.Font.GothamBold
+logo.TextSize = 24
+logo.TextColor3 = Color3.fromRGB(255,255,255)
+logo.BackgroundColor3 = Color3.fromRGB(0,0,0)
+logo.BorderSizePixel = 0
+logo.Visible = false
+
+-- Minimize functionality
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    frame.Visible = not minimized
+    startBtn.Visible = not minimized
+    discordBtn.Visible = not minimized
+    logo.Visible = minimized
+end)
+logo.MouseButton1Click:Connect(function()
+    minimized = false
+    frame.Visible = true
+    startBtn.Visible = true
+    discordBtn.Visible = true
+    logo.Visible = false
+end)
+
+-- Start button toggle
+startBtn.MouseButton1Click:Connect(function()
+    autoBuy = not autoBuy
+    startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
+end)
+
+-- Draggable header
+do
+    local dragging, dragStart, startPos
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    header.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Draggable logo
+do
+    local dragging, dragStart, startPos
+    logo.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = logo.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    logo.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            logo.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+delta.X, startPos.Y.Scale, startPos.Y.Offset+delta.Y)
+        end
+    end)
+end
+
+-- Auto-buy loop
+task.spawn(function()
+    while task.wait(0.05) do
+        if autoBuy then
+            for seed,_ in pairs(selectedSeeds) do
+                for i=1,buysPerItem do
+                    buySeedEvent:FireServer(seed.." Seed", true)
+                    task.wait(perItemDelay)
+                end
+            end
+            for gear,_ in pairs(selectedGears) do
+                for i=1,buysPerItem do
+                    buyGearEvent:FireServer(gear,true)
+                    task.wait(perItemDelay)
+                end
+            end
+        end
+    end
+end)
+
+print(" FYNX HUB Loaded")title.Position = UDim2.new(0,10,0,0)
 title.BackgroundTransparency = 1
 title.Text = "FYNX HUB"
 title.TextColor3 = Color3.fromRGB(245,245,250)

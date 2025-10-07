@@ -1,4 +1,4 @@
---  FYNX HUB 
+-- FYNX HUB 
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,9 +14,9 @@ local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
 local buysPerItem = 5
-local perItemDelay = 0.05 -- tiny delay to ensure Roblox processes each buy
+local perItemDelay = 0.05 -- small delay to ensure Roblox processes each buy
 
--- GUI
+-- GUI setup
 local parentGui = (gethui and gethui()) or game:GetService("CoreGui")
 local gui = Instance.new("ScreenGui", parentGui)
 gui.Name = "FYNX_HUB_GUI"
@@ -52,17 +52,17 @@ minBtn.TextColor3 = Color3.fromRGB(250,250,250)
 
 -- Tabs container
 local tabFrame = Instance.new("Frame", frame)
-tabFrame.Size = UDim2.new(1,-20,1,-90)
+tabFrame.Size = UDim2.new(1,-20,1,-120)
 tabFrame.Position = UDim2.new(0,10,0,50)
 tabFrame.BackgroundTransparency = 1
 
--- Tab creation
+-- Tab creation function
 local function createTab(titleText, parentFrame, items, selectedTable, yPos)
     local tab = Instance.new("Frame", parentFrame)
     tab.Size = UDim2.new(1,0,0,120)
     tab.Position = UDim2.new(0,0,0,yPos)
     tab.BackgroundColor3 = Color3.fromRGB(36,36,60)
-    
+
     local titleLabel = Instance.new("TextLabel", tab)
     titleLabel.Size = UDim2.new(1,0,0,20)
     titleLabel.BackgroundTransparency = 1
@@ -70,14 +70,14 @@ local function createTab(titleText, parentFrame, items, selectedTable, yPos)
     titleLabel.TextColor3 = Color3.fromRGB(240,240,250)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
-    
+
     local list = Instance.new("ScrollingFrame", tab)
     list.Size = UDim2.new(1,-10,0,80)
     list.Position = UDim2.new(0,5,0,25)
     list.BackgroundTransparency = 1
     list.CanvasSize = UDim2.new(0,0,#items*28)
     list.ScrollBarThickness = 6
-    
+
     for i,name in ipairs(items) do
         local btn = Instance.new("TextButton", list)
         btn.Size = UDim2.new(1,-10,0,26)
@@ -113,6 +113,19 @@ startBtn.Font = Enum.Font.GothamBold
 startBtn.TextSize = 14
 startBtn.TextColor3 = Color3.fromRGB(20,20,20)
 
+-- Discord button
+local discordBtn = Instance.new("TextButton", frame)
+discordBtn.Size = UDim2.new(1,-20,0,28)
+discordBtn.Position = UDim2.new(0,10,1,-82) -- above Start button
+discordBtn.BackgroundColor3 = Color3.fromRGB(72,72,255)
+discordBtn.Text = "Join Discord"
+discordBtn.Font = Enum.Font.GothamBold
+discordBtn.TextSize = 14
+discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
+discordBtn.MouseButton1Click:Connect(function()
+    setclipboard("https://discord.gg/ReGmGrQT")
+end)
+
 -- Minimized logo
 local logo = Instance.new("TextButton", gui)
 logo.Size = UDim2.new(0,50,0,50)
@@ -125,21 +138,23 @@ logo.BackgroundColor3 = Color3.fromRGB(0,0,0)
 logo.BorderSizePixel = 0
 logo.Visible = false
 
--- Minimize button
+-- Minimize functionality
 minBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     frame.Visible = not minimized
     startBtn.Visible = not minimized
+    discordBtn.Visible = not minimized
     logo.Visible = minimized
 end)
 logo.MouseButton1Click:Connect(function()
     minimized = false
     frame.Visible = true
     startBtn.Visible = true
+    discordBtn.Visible = true
     logo.Visible = false
 end)
 
--- Start button functionality
+-- Start button toggle
 startBtn.MouseButton1Click:Connect(function()
     autoBuy = not autoBuy
     startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
@@ -187,21 +202,19 @@ do
     end)
 end
 
--- Auto-Buy
+-- Auto-buy loop
 task.spawn(function()
     while task.wait(0.05) do
         if autoBuy then
-            -- Buy all seeds
             for seed,_ in pairs(selectedSeeds) do
                 for i=1,buysPerItem do
                     buySeedEvent:FireServer(seed.." Seed", true)
                     task.wait(perItemDelay)
                 end
             end
-            -- Buy all gears
             for gear,_ in pairs(selectedGears) do
                 for i=1,buysPerItem do
-                    buyGearEvent:FireServer(gear, true)
+                    buyGearEvent:FireServer(gear,true)
                     task.wait(perItemDelay)
                 end
             end
@@ -209,4 +222,4 @@ task.spawn(function()
     end
 end)
 
-print(" FYNX HUB Loaded — Fixed Instant Auto-Buy for selected seeds & gears!")
+print(" FYNX HUB Loaded")

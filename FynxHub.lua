@@ -12,7 +12,7 @@ if not player then
     return
 end
 
--- helper: waitForChild with timeout (returns nil instead of yielding forever)
+-- helper: waitForChild with timeout
 local function waitForChildTimeout(parent, name, timeout)
     local start = tick()
     while tick() - start < (timeout or 5) do
@@ -23,7 +23,7 @@ local function waitForChildTimeout(parent, name, timeout)
     return nil
 end
 
--- try to find remotes safely (won't hang indefinitely now)
+-- remotes
 local remotesFolder = waitForChildTimeout(ReplicatedStorage, "Remotes", 3)
 local buySeedEvent = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
 local buyGearEvent = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
@@ -41,14 +41,13 @@ local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
 local buysPerItem = 5
-local perItemDelay = 0.05
 
 -- player controls
 local DEFAULT_WALKSPEED = 16
 local savedWalkSpeed = DEFAULT_WALKSPEED
 local infiniteJumpEnabled = false
 
--- click sound helper
+-- click sound
 local function playClickSound()
     local s = Instance.new("Sound")
     s.SoundId = "rbxassetid://12221967"
@@ -58,7 +57,7 @@ local function playClickSound()
     s:Destroy()
 end
 
--- GUI parent: prefer PlayerGui (safe). fallback to gethui() if available, else CoreGui.
+-- GUI parent
 local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
 
 local gui = Instance.new("ScreenGui")
@@ -123,14 +122,14 @@ end
 local homeBtn = createTabButton("🏠 Home", 0)
 local playerBtn = createTabButton("👤 Player", 0.5)
 
--- tab frame area
+-- tab frame
 local tabFrame = Instance.new("Frame", frame)
 tabFrame.Size = UDim2.new(1,-20,1,-120)
 tabFrame.Position = UDim2.new(0,10,0,80)
 tabFrame.BackgroundColor3 = Color3.fromRGB(30,30,55)
 tabFrame.BorderSizePixel = 0
 
--- HOME scroll (everything in home lives here; auto-resizes)
+-- HOME scroll
 local homeScroll = Instance.new("ScrollingFrame", tabFrame)
 homeScroll.Size = UDim2.new(1,-8,1,0)
 homeScroll.Position = UDim2.new(0,4,0,0)
@@ -138,14 +137,14 @@ homeScroll.CanvasSize = UDim2.new(0,0,0,0)
 homeScroll.ScrollBarThickness = 6
 homeScroll.BackgroundTransparency = 1
 
--- PLAYER container (vertical layout)
+-- PLAYER tab
 local playerTab = Instance.new("Frame", tabFrame)
 playerTab.Size = UDim2.new(1,-8,1,0)
 playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- helper to create collapsible sections
+-- collapsible helper
 local function createCollapsible(parent, titleText, items, selectedTable)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(1,-10,0,32)
@@ -195,23 +194,18 @@ local function createCollapsible(parent, titleText, items, selectedTable)
     return container, headerBtn, list
 end
 
--- create seed/gear sections
 local seedSection, seedHeader, seedList = createCollapsible(homeScroll, "🌱 Seeds", seeds, selectedSeeds)
 local gearSection, gearHeader, gearList = createCollapsible(homeScroll, "⚙️ Gears", gears, selectedGears)
 
--- update positions so gear follows seed; uses tweens for smooth movement
 local function recalcPositions()
     local y = 5
     for _, sec in ipairs({seedSection, gearSection}) do
         local target = UDim2.new(0,5,0,y)
         TweenService:Create(sec, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
-        -- use AbsoluteSize when available
         local ht = sec.AbsoluteSize.Y
         if ht == 0 then ht = sec.Size.Y.Offset end
         y = y + ht + 5
     end
-
-    -- small delay to let sizes settle
     task.delay(0.06, function()
         local total = 10
         for _, c in ipairs(homeScroll:GetChildren()) do
@@ -223,12 +217,10 @@ local function recalcPositions()
     end)
 end
 
--- toggle helper with tween
 local function toggleList(list, container)
     playClickSound()
     local willExpand = not list.Visible
     local targetHeight = willExpand and math.min(list.CanvasSize.Y.Offset + 10, 160) or 0
-
     if willExpand then list.Visible = true end
     local tween = TweenService:Create(list, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)})
     tween:Play()
@@ -241,14 +233,12 @@ end
 
 seedHeader.MouseButton1Click:Connect(function() toggleList(seedList, seedSection) end)
 gearHeader.MouseButton1Click:Connect(function() toggleList(gearList, gearSection) end)
-
--- keep layout updated when sizes change
 seedSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 task.delay(0.05, recalcPositions)
 
--- PLAYER TAB UI (vertical)
+-- PLAYER scroll
 local playerScroll = Instance.new("ScrollingFrame", playerTab)
 playerScroll.Size = UDim2.new(1,-8,1,0)
 playerScroll.Position = UDim2.new(0,4,0,0)
@@ -268,13 +258,12 @@ local function updatePlayerCanvas()
     end)
 end
 
--- WalkSpeed section (vertical)
+-- Player controls
 local function makePlayerSection(parent, title, y)
     local sec = Instance.new("Frame", parent)
     sec.Size = UDim2.new(1, -10, 0, 120)
     sec.Position = UDim2.new(0, 5, 0, y or 5)
     sec.BackgroundTransparency = 1
-
     local header = Instance.new("TextLabel", sec)
     header.Size = UDim2.new(1, 0, 0, 26)
     header.Position = UDim2.new(0, 0, 0, 0)
@@ -284,7 +273,6 @@ local function makePlayerSection(parent, title, y)
     header.TextSize = 14
     header.TextColor3 = Color3.fromRGB(240,240,255)
     header.TextXAlignment = Enum.TextXAlignment.Left
-
     return sec
 end
 
@@ -321,7 +309,7 @@ resetBtn.TextColor3 = Color3.fromRGB(20,20,20)
 resetBtn.BackgroundColor3 = Color3.fromRGB(200,200,200)
 resetBtn.BorderSizePixel = 0
 
--- infinite jump section
+-- Infinite jump
 local jumpSec = makePlayerSection(playerScroll, "🕊️ Infinite Jump", 5 + walkSec.Size.Y.Offset + 10)
 jumpSec.Size = UDim2.new(1,-10,0,100)
 local jumpToggle = Instance.new("TextButton", jumpSec)
@@ -348,7 +336,6 @@ local function setWalkSpeedFromText(text)
     if not n then return false end
     if n < 1 or n > 100 then return false end
     savedWalkSpeed = n
-    -- apply to current character
     if player.Character then
         local h = player.Character:FindFirstChildOfClass("Humanoid")
         if h then applyWalkSpeedToHumanoid(h) end
@@ -411,20 +398,28 @@ UserInputService.JumpRequest:Connect(function()
     h:ChangeState(Enum.HumanoidStateType.Jumping)
 end)
 
--- Auto-buy loop (safe: uses pcall and checks for nil remotes so script won't error)
+-- Ultra-fast auto-buy loop
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.01) do
         if autoBuy then
+            -- Seeds
             for seed,_ in pairs(selectedSeeds) do
                 if buySeedEvent then
-                    pcall(function() buySeedEvent:FireServer(seed .. " Seed", true) end)
-                    task.wait(perItemDelay)
+                    pcall(function()
+                        for i = 1, buysPerItem do
+                            buySeedEvent:FireServer(seed .. " Seed", true)
+                        end
+                    end)
                 end
             end
+            -- Gears
             for gear,_ in pairs(selectedGears) do
                 if buyGearEvent then
-                    pcall(function() buyGearEvent:FireServer(gear, true) end)
-                    task.wait(perItemDelay)
+                    pcall(function()
+                        for i = 1, buysPerItem do
+                            buyGearEvent:FireServer(gear, true)
+                        end
+                    end)
                 end
             end
         end
@@ -498,7 +493,7 @@ playerBtn.MouseButton1Click:Connect(function()
     homeScroll.Visible = false
 end)
 
--- Draggable function (works for touch + mouse)
+-- Draggable
 local function makeDraggable(obj, dragHandle)
     local dragging, dragStart, startPos
     local function update(input)
@@ -528,15 +523,12 @@ end
 makeDraggable(frame, header)
 makeDraggable(logo, logo)
 
--- apply saved walk speed on current character if present
+-- apply saved walk speed
 if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-    local h = player.Character:FindFirstChildOfClass("Humanoid")
-    if h then
-        h.WalkSpeed = savedWalkSpeed
-    end
+    player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
 end
 
--- initial layout updates
+-- initial layout
 recalcPositions()
 updatePlayerCanvas()
 

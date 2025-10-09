@@ -298,7 +298,7 @@ task.spawn(function()
             end
             for gear, _ in pairs(selectedGears) do
                 if buyGearRemote then
-                    for i=5,buysPerItem do
+                    for i=10,buysPerItem do
                         table.insert(allTasks,function()
                             pcall(function() buyGearRemote:FireServer(gear,true) end)
                         end)
@@ -307,7 +307,7 @@ task.spawn(function()
             end
             for i,fn in ipairs(allTasks) do
                 fn()
-                if i%10==0 then task.wait() end
+                if i%7==0 then task.wait() end
             end
         end
     end

@@ -1,5 +1,6 @@
--- FYNX HUB (FINAL) - Fast Auto Buy integrated (NO DELAY)
--- Player Tab now includes WalkSpeed and Infinite Jump toggle
+-- FYNX HUB (FINAL CLEAN) - Fast Auto Buy integrated (NO DELAY)
+-- Keeps all original GUI layout, only Player tab shows "Coming Soon!"
+-- Auto-buy uses direct FireServer calls per seed/gear with NO delay
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,20 +35,14 @@ elseif not buySeedRemote or not buyGearRemote then
     warn("FYNX HUB: BuyItem/BuyGear remote(s) not found (auto-buy disabled).")
 end
 
--- DATA (full lists included)
+-- DATA
 local seeds = {"Cactus","Strawberry","Pumpkin","Sunflower","Dragonfruit","Eggplant","Watermelon","Grape","Cocotank","Carnivorous Plant","Mr Carrot","Tomatrio","Shroombino","Mango"}
 local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Frost Blower"}
 
 local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
-local buysPerItem = 5
-local delayBetweenFires = 0.05
-
--- player controls
-local DEFAULT_WALKSPEED = 16
-local savedWalkSpeed = DEFAULT_WALKSPEED
-local infiniteJumpEnabled = false
+local buysPerItem = 5 -- how many times to buy each selected item per loop
 
 -- click sound
 local function playClickSound()
@@ -139,73 +134,25 @@ homeScroll.CanvasSize = UDim2.new(0,0,0,0)
 homeScroll.ScrollBarThickness = 6
 homeScroll.BackgroundTransparency = 1
 
--- PLAYER tab (with controls)
+-- PLAYER tab
 local playerTab = Instance.new("Frame", tabFrame)
 playerTab.Size = UDim2.new(1,-8,1,0)
 playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- WalkSpeed Label
-local wsLabel = Instance.new("TextLabel", playerTab)
-wsLabel.Size = UDim2.new(0.6, 0, 0, 24)
-wsLabel.Position = UDim2.new(0, 10, 0, 10)
-wsLabel.BackgroundTransparency = 1
-wsLabel.Text = "WalkSpeed: "..savedWalkSpeed
-wsLabel.Font = Enum.Font.GothamBold
-wsLabel.TextSize = 14
-wsLabel.TextColor3 = Color3.fromRGB(255,255,255)
-wsLabel.TextXAlignment = Enum.TextXAlignment.Left
-
--- WalkSpeed Box
-local wsBox = Instance.new("TextBox", playerTab)
-wsBox.Size = UDim2.new(0.3, 0, 0, 24)
-wsBox.Position = UDim2.new(0.65, -10, 0, 10)
-wsBox.BackgroundColor3 = Color3.fromRGB(55,55,90)
-wsBox.TextColor3 = Color3.fromRGB(255,255,255)
-wsBox.Font = Enum.Font.GothamBold
-wsBox.TextSize = 14
-wsBox.PlaceholderText = "16–100"
-wsBox.Text = tostring(savedWalkSpeed)
-wsBox.BorderSizePixel = 0
-
-wsBox.FocusLost:Connect(function()
-    playClickSound()
-    local val = tonumber(wsBox.Text)
-    if val and val >= 16 and val <= 100 then
-        savedWalkSpeed = val
-        wsLabel.Text = "WalkSpeed: "..val
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = val end
-    else
-        wsBox.Text = tostring(savedWalkSpeed)
-    end
-end)
-
--- Infinite Jump Toggle
-local infJumpBtn = Instance.new("TextButton", playerTab)
-infJumpBtn.Size = UDim2.new(1,-20,0,32)
-infJumpBtn.Position = UDim2.new(0,10,0,50)
-infJumpBtn.BackgroundColor3 = Color3.fromRGB(120,100,255)
-infJumpBtn.Text = "🌙 Infinite Jump: OFF"
-infJumpBtn.Font = Enum.Font.GothamBold
-infJumpBtn.TextSize = 14
-infJumpBtn.TextColor3 = Color3.fromRGB(255,255,255)
-infJumpBtn.BorderSizePixel = 0
-
-infJumpBtn.MouseButton1Click:Connect(function()
-    playClickSound()
-    infiniteJumpEnabled = not infiniteJumpEnabled
-    infJumpBtn.Text = infiniteJumpEnabled and "🌕 Infinite Jump: ON" or "🌙 Infinite Jump: OFF"
-    infJumpBtn.BackgroundColor3 = infiniteJumpEnabled and Color3.fromRGB(80,255,120) or Color3.fromRGB(120,100,255)
-end)
-
--- Infinite Jump Functionality
-UserInputService.JumpRequest:Connect(function()
-    if infiniteJumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
-    end
-end)
+-- Coming Soon placeholder
+local comingSoonLabel = Instance.new("TextLabel", playerTab)
+comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
+comingSoonLabel.Position = UDim2.new(0, 0, 0, 0)
+comingSoonLabel.BackgroundTransparency = 1
+comingSoonLabel.Text = "🚧 Player features coming soon!"
+comingSoonLabel.Font = Enum.Font.GothamBold
+comingSoonLabel.TextSize = 18
+comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
+comingSoonLabel.TextStrokeTransparency = 0.8
+comingSoonLabel.TextYAlignment = Enum.TextYAlignment.Center
+comingSoonLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- collapsible helper (for home seeds/gears)
 local function createCollapsible(parent, titleText, items, selectedTable)
@@ -368,6 +315,38 @@ logo.TextColor3 = Color3.fromRGB(255,255,255)
 logo.BackgroundColor3 = Color3.fromRGB(95,75,200)
 logo.BorderSizePixel = 0
 logo.Visible = false
+
+-- Make frame & logo draggable (PC + Mobile)
+local function makeDraggable(obj, dragHandle)
+    local dragging, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+
+    dragHandle.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+makeDraggable(frame, header)
+makeDraggable(logo, logo)
+
+-- Minimize toggle
 logo.MouseButton1Click:Connect(function()
     playClickSound()
     minimized = false
@@ -388,39 +367,14 @@ homeBtn.MouseButton1Click:Connect(function()
     homeScroll.Visible = true
     playerTab.Visible = false
 end)
+
 playerBtn.MouseButton1Click:Connect(function()
     playClickSound()
     playerTab.Visible = true
     homeScroll.Visible = false
 end)
 
--- Draggable
-local function makeDraggable(obj, dragHandle)
-    local dragging, dragStart, startPos
-    local function update(input)
-        local delta = input.Position - dragStart
-        obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
+-- initial layout
+recalcPositions()
 
-    dragHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = obj.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    dragHandle.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            update(input)
-        end
-    end)
-end
-makeDraggable(frame, header)
-
-print("✅ FYNX HUB loaded successfully.")
+print("✅ FYNX HUB loaded - Fast Auto Buy enabled (NO delay)")

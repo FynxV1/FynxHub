@@ -1,6 +1,5 @@
 -- FYNX HUB (FINAL) - Fast Auto Buy integrated (NO DELAY)
--- Keeps all original GUI layout, only Player tab changed to "Coming Soon!"
--- Auto-buy uses direct FireServer calls per seed/gear with NO delay
+-- Player Tab now includes WalkSpeed and Infinite Jump toggle
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,10 +41,10 @@ local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Fr
 local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
-local buysPerItem = 5 -- how many times to buy each selected item per loop
-local delayBetweenFires = 0.05 -- kept for compatibility (NOT USED when no delay)
+local buysPerItem = 5
+local delayBetweenFires = 0.05
 
--- player controls (kept but player features removed from player tab)
+-- player controls
 local DEFAULT_WALKSPEED = 16
 local savedWalkSpeed = DEFAULT_WALKSPEED
 local infiniteJumpEnabled = false
@@ -140,25 +139,73 @@ homeScroll.CanvasSize = UDim2.new(0,0,0,0)
 homeScroll.ScrollBarThickness = 6
 homeScroll.BackgroundTransparency = 1
 
--- PLAYER tab
+-- PLAYER tab (with controls)
 local playerTab = Instance.new("Frame", tabFrame)
 playerTab.Size = UDim2.new(1,-8,1,0)
 playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- Coming Soon placeholder in Player tab
-local comingSoonLabel = Instance.new("TextLabel", playerTab)
-comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
-comingSoonLabel.Position = UDim2.new(0, 0, 0, 0)
-comingSoonLabel.BackgroundTransparency = 1
-comingSoonLabel.Text = "🚧 Player features coming soon!"
-comingSoonLabel.Font = Enum.Font.GothamBold
-comingSoonLabel.TextSize = 18
-comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
-comingSoonLabel.TextStrokeTransparency = 0.8
-comingSoonLabel.TextYAlignment = Enum.TextYAlignment.Center
-comingSoonLabel.TextXAlignment = Enum.TextXAlignment.Center
+-- WalkSpeed Label
+local wsLabel = Instance.new("TextLabel", playerTab)
+wsLabel.Size = UDim2.new(0.6, 0, 0, 24)
+wsLabel.Position = UDim2.new(0, 10, 0, 10)
+wsLabel.BackgroundTransparency = 1
+wsLabel.Text = "WalkSpeed: "..savedWalkSpeed
+wsLabel.Font = Enum.Font.GothamBold
+wsLabel.TextSize = 14
+wsLabel.TextColor3 = Color3.fromRGB(255,255,255)
+wsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- WalkSpeed Box
+local wsBox = Instance.new("TextBox", playerTab)
+wsBox.Size = UDim2.new(0.3, 0, 0, 24)
+wsBox.Position = UDim2.new(0.65, -10, 0, 10)
+wsBox.BackgroundColor3 = Color3.fromRGB(55,55,90)
+wsBox.TextColor3 = Color3.fromRGB(255,255,255)
+wsBox.Font = Enum.Font.GothamBold
+wsBox.TextSize = 14
+wsBox.PlaceholderText = "16–100"
+wsBox.Text = tostring(savedWalkSpeed)
+wsBox.BorderSizePixel = 0
+
+wsBox.FocusLost:Connect(function()
+    playClickSound()
+    local val = tonumber(wsBox.Text)
+    if val and val >= 16 and val <= 100 then
+        savedWalkSpeed = val
+        wsLabel.Text = "WalkSpeed: "..val
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = val end
+    else
+        wsBox.Text = tostring(savedWalkSpeed)
+    end
+end)
+
+-- Infinite Jump Toggle
+local infJumpBtn = Instance.new("TextButton", playerTab)
+infJumpBtn.Size = UDim2.new(1,-20,0,32)
+infJumpBtn.Position = UDim2.new(0,10,0,50)
+infJumpBtn.BackgroundColor3 = Color3.fromRGB(120,100,255)
+infJumpBtn.Text = "🌙 Infinite Jump: OFF"
+infJumpBtn.Font = Enum.Font.GothamBold
+infJumpBtn.TextSize = 14
+infJumpBtn.TextColor3 = Color3.fromRGB(255,255,255)
+infJumpBtn.BorderSizePixel = 0
+
+infJumpBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    infiniteJumpEnabled = not infiniteJumpEnabled
+    infJumpBtn.Text = infiniteJumpEnabled and "🌕 Infinite Jump: ON" or "🌙 Infinite Jump: OFF"
+    infJumpBtn.BackgroundColor3 = infiniteJumpEnabled and Color3.fromRGB(80,255,120) or Color3.fromRGB(120,100,255)
+end)
+
+-- Infinite Jump Functionality
+UserInputService.JumpRequest:Connect(function()
+    if infiniteJumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
 
 -- collapsible helper (for home seeds/gears)
 local function createCollapsible(parent, titleText, items, selectedTable)
@@ -254,30 +301,24 @@ gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 task.delay(0.05, recalcPositions)
 
--- PLAYER tab (coming soon) already set above
-
 -- Ultra-fast auto-buy loop (NO DELAY version)
 task.spawn(function()
     while task.wait(0.01) do
         if autoBuy then
-            -- Seeds: fire the remote for each selected seed buysPerItem times (no delay)
             for seed, _ in pairs(selectedSeeds) do
                 if buySeedRemote then
                     for i = 1, buysPerItem do
                         pcall(function()
-                            local args = { seed, true }
-                            buySeedRemote:FireServer(unpack(args))
+                            buySeedRemote:FireServer(seed, true)
                         end)
                     end
                 end
             end
-            -- Gears: fire the remote for each selected gear buysPerItem times (no delay)
             for gear, _ in pairs(selectedGears) do
                 if buyGearRemote then
                     for i = 1, buysPerItem do
                         pcall(function()
-                            local args = { gear, true }
-                            buyGearRemote:FireServer(unpack(args))
+                            buyGearRemote:FireServer(gear, true)
                         end)
                     end
                 end
@@ -368,27 +409,18 @@ local function makeDraggable(obj, dragHandle)
             dragStart = input.Position
             startPos = obj.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
             end)
         end
     end)
-
     dragHandle.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             update(input)
         end
     end)
 end
-
 makeDraggable(frame, header)
-makeDraggable(logo, logo)
 
--- apply saved walk speed if character exists (kept for compatibility)
-if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-    player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
-end
-
--- initial layout
-recalcPositions()
-
-print("FYNX HUB loaded - Fast Auto Buy enabled (NO delay)")
+print("✅ FYNX HUB loaded successfully.")

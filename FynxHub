@@ -1,4 +1,4 @@
--- FYNX HUB v2 with Player Features
+-- FYNX HUB v2
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,11 +42,11 @@ local autoBuy = false
 local minimized = false
 local buysPerItem = 5
 local delayBetweenFires = 0.05 -- compatibility (not used)
+local infiniteJumpEnabled = false
 
 -- player controls
 local DEFAULT_WALKSPEED = 16
 local savedWalkSpeed = DEFAULT_WALKSPEED
-local infiniteJumpEnabled = false
 
 -- click sound
 local function playClickSound()
@@ -144,11 +144,11 @@ playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- Coming Soon (for compatibility)
+-- Coming Soon
 local comingSoonLabel = Instance.new("TextLabel", playerTab)
 comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
 comingSoonLabel.BackgroundTransparency = 1
-comingSoonLabel.Text = ""
+comingSoonLabel.Text = "🚧 Player features coming soon!"
 comingSoonLabel.Font = Enum.Font.GothamBold
 comingSoonLabel.TextSize = 18
 comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
@@ -385,7 +385,7 @@ end
 
 -- ==============================
 -- PLAYER TAB FEATURES
--- WalkSpeed slider + Infinite Jump toggle
+-- WalkSpeed slider + Infinite Jump toggle (Mobile-friendly)
 -- ==============================
 
 local featureContainer = Instance.new("Frame", playerTab)
@@ -402,7 +402,7 @@ wsLabel.TextSize = 14
 wsLabel.TextColor3 = Color3.fromRGB(255,255,255)
 wsLabel.Text = "WalkSpeed: 16"
 
--- WalkSpeed Slider Container
+-- WalkSpeed Slider
 local wsSlider = Instance.new("Frame", featureContainer)
 wsSlider.Size = UDim2.new(0.8,0,0,24)
 wsSlider.Position = UDim2.new(0.1,0,0,40)
@@ -410,77 +410,70 @@ wsSlider.BackgroundColor3 = Color3.fromRGB(55,55,90)
 wsSlider.BorderSizePixel = 0
 wsSlider.ClipsDescendants = true
 
--- Glow behind slider fill
-local wsGlow = Instance.new("Frame", wsSlider)
-wsGlow.Size = UDim2.new(1,0,1,0)
-wsGlow.BackgroundColor3 = Color3.fromRGB(120,100,255)
-wsGlow.BackgroundTransparency = 0.9
-wsGlow.BorderSizePixel = 0
-wsGlow.ZIndex = 1
+-- Mobile-friendly hitbox
+local wsTouchZone = Instance.new("TextButton", wsSlider)
+wsTouchZone.Size = UDim2.new(1,0,1,0)
+wsTouchZone.BackgroundTransparency = 1
+wsTouchZone.Text = ""
+wsTouchZone.AutoButtonColor = false
 
 -- Slider Fill
 local wsFill = Instance.new("Frame", wsSlider)
 wsFill.Size = UDim2.new(0,0,1,0)
 wsFill.BackgroundColor3 = Color3.fromRGB(120,100,255)
 wsFill.BorderSizePixel = 0
-wsFill.ZIndex = 2
 
 -- Slider Thumb
 local wsThumb = Instance.new("Frame", wsSlider)
 wsThumb.Size = UDim2.new(0,12,1,0)
-wsThumb.Position = UDim2.new(0,0,0.5,0)
+wsThumb.Position = UDim2.new(0,0,0,0)
+wsThumb.AnchorPoint = Vector2.new(0.5,0.5)
 wsThumb.BackgroundColor3 = Color3.fromRGB(180,150,255)
 wsThumb.BorderSizePixel = 0
-wsThumb.AnchorPoint = Vector2.new(0.5,0.5)
-wsThumb.ZIndex = 3
 
--- Glow on thumb
 local thumbGlow = Instance.new("UIStroke", wsThumb)
 thumbGlow.Color = Color3.fromRGB(200,170,255)
 thumbGlow.Thickness = 2
 thumbGlow.Transparency = 0.5
 
--- Dragging functionality
-local wsDragging = false
-wsThumb.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        wsDragging = true
-    end
-end)
-wsThumb.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        wsDragging = false
-    end
-end)
-wsSlider.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        wsDragging = true
-    end
-end)
-wsSlider.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        wsDragging = false
-    end
-end)
+-- Dragging logic
+local dragging = false
 
-local function updateWalkSpeed(inputPosX)
-    local relativeX = math.clamp(inputPosX - wsSlider.AbsolutePosition.X, 0, wsSlider.AbsoluteSize.X)
-    wsFill.Size = UDim2.new(relativeX / wsSlider.AbsoluteSize.X, 0, 1, 0)
-    wsThumb.Position = UDim2.new(relativeX / wsSlider.AbsoluteSize.X, 0, 0.5, 0)
-    local speed = math.floor(16 + (relativeX / wsSlider.AbsoluteSize.X) * (100-16))
+local function updateWalkSpeed(inputX)
+    local sliderPos = wsSlider.AbsolutePosition.X
+    local sliderSize = wsSlider.AbsoluteSize.X
+    local relativeX = math.clamp(inputX - sliderPos, 0, sliderSize)
+    local speed = math.floor(16 + (relativeX / sliderSize) * (100-16))
+    
+    wsFill.Size = UDim2.new(relativeX / sliderSize,0,1,0)
+    wsThumb.Position = UDim2.new(relativeX / sliderSize,0,0.5,0)
     wsLabel.Text = "WalkSpeed: "..speed
+    
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = speed
     end
 end
 
-wsSlider.InputChanged:Connect(function(input)
-    if wsDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+local function startDrag(input)
+    dragging = true
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         updateWalkSpeed(input.Position.X)
     end
-end)
+end
+
+local function stopDrag(input)
+    dragging = false
+end
+
+wsThumb.InputBegan:Connect(startDrag)
+wsThumb.InputEnded:Connect(stopDrag)
+wsTouchZone.InputBegan:Connect(startDrag)
+wsTouchZone.InputEnded:Connect(stopDrag)
+wsSlider.InputBegan:Connect(startDrag)
+wsSlider.InputEnded:Connect(stopDrag)
+
 UserInputService.InputChanged:Connect(function(input)
-    if wsDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         updateWalkSpeed(input.Position.X)
     end
 end)
@@ -501,7 +494,6 @@ infJumpBtn.MouseButton1Click:Connect(function()
     infJumpBtn.Text = "Infinite Jump: "..(infiniteJumpEnabled and "ON" or "OFF")
 end)
 
--- Infinite Jump Connection
 UserInputService.JumpRequest:Connect(function()
     if infiniteJumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
@@ -509,4 +501,4 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 recalcPositions()
-print("FYNX HUB loaded - Optimized Fast Auto Buy & Player Features enabled (WalkSpeed + Infinite Jump)")
+print("FYNX HUB loaded - Optimized Fast Auto Buy + Player features enabled")

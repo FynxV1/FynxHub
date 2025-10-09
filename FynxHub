@@ -1,5 +1,5 @@
--- ✅ AUTO BUY GUI + ADAPTIVE FAST BUY SYSTEM (no ping spike)
--- Paste this entire script into a LocalScript inside StarterGui or similar
+-- ✅ AUTO BUY GUI + ADAPTIVE AUTO BUY SYSTEM (WORKING VERSION)
+-- Paste this into a LocalScript (NOT a normal Script!)
 
 --// Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,9 +7,13 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 
---// Remotes
-local buySeedRemote = ReplicatedStorage:WaitForChild("BuySeed")
-local buyGearRemote = ReplicatedStorage:WaitForChild("BuyGear")
+--// Wait for remotes safely
+local buySeedRemote = ReplicatedStorage:FindFirstChild("BuySeed")
+local buyGearRemote = ReplicatedStorage:FindFirstChild("BuyGear")
+
+if not buySeedRemote or not buyGearRemote then
+	warn("[AutoBuyGUI] ⚠️ Missing remotes! Make sure BuySeed and BuyGear exist in ReplicatedStorage.")
+end
 
 --// GUI Setup
 local screenGui = Instance.new("ScreenGui")
@@ -110,21 +114,26 @@ local selectedSeeds = {}
 local selectedGears = {}
 local buysPerItem = 5
 
+print("[AutoBuyGUI] ✅ GUI Loaded")
+
 --// GUI Button Logic
 buyToggle.MouseButton1Click:Connect(function()
 	autoBuy = not autoBuy
 	if autoBuy then
 		buyToggle.Text = "Auto Buy: ON"
 		buyToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+		print("[AutoBuyGUI] ✅ Auto Buy Activated")
 	else
 		buyToggle.Text = "Auto Buy: OFF"
 		buyToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+		print("[AutoBuyGUI] ⛔ Auto Buy Deactivated")
 	end
 end)
 
 seedBox.FocusLost:Connect(function(enterPressed)
 	if enterPressed and seedBox.Text ~= "" then
 		selectedSeeds[seedBox.Text] = true
+		print("[AutoBuyGUI] Added Seed:", seedBox.Text)
 		seedBox.Text = ""
 	end
 end)
@@ -132,6 +141,7 @@ end)
 gearBox.FocusLost:Connect(function(enterPressed)
 	if enterPressed and gearBox.Text ~= "" then
 		selectedGears[gearBox.Text] = true
+		print("[AutoBuyGUI] Added Gear:", gearBox.Text)
 		gearBox.Text = ""
 	end
 end)
@@ -139,6 +149,7 @@ end)
 buysBox.FocusLost:Connect(function(enterPressed)
 	if enterPressed and tonumber(buysBox.Text) then
 		buysPerItem = tonumber(buysBox.Text)
+		print("[AutoBuyGUI] Buys per item set to:", buysPerItem)
 		buysBox.Text = ""
 	end
 end)
@@ -149,7 +160,6 @@ task.spawn(function()
 		if autoBuy then
 			local allTasks = {}
 
-			-- Collect seeds
 			for seed, _ in pairs(selectedSeeds) do
 				if buySeedRemote then
 					for i = 1, buysPerItem do
@@ -162,7 +172,6 @@ task.spawn(function()
 				end
 			end
 
-			-- Collect gears
 			for gear, _ in pairs(selectedGears) do
 				if buyGearRemote then
 					for i = 1, buysPerItem do
@@ -175,7 +184,6 @@ task.spawn(function()
 				end
 			end
 
-			-- Adaptive speed logic
 			local totalCalls = #allTasks
 			if totalCalls > 0 then
 				local batchSize = math.clamp(math.floor(15 - (totalCalls / 10)), 3, 10)

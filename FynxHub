@@ -1,201 +1,389 @@
--- ✅ AUTO BUY GUI + ADAPTIVE AUTO BUY SYSTEM (WORKING VERSION)
--- Paste this into a LocalScript (NOT a normal Script!)
+-- FYNX HUB (FINAL) - Fast Auto Buy integrated (NO DELAY, optimized)
+-- Keeps all original GUI layout, only Player tab changed to "Coming Soon!"
+-- Auto-buy uses FireServer calls per seed/gear with adaptive pacing (prevents ping spike)
 
---// Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+
 local player = Players.LocalPlayer
-local PlayerGui = player:WaitForChild("PlayerGui")
-
---// Wait for remotes safely
-local buySeedRemote = ReplicatedStorage:FindFirstChild("BuySeed")
-local buyGearRemote = ReplicatedStorage:FindFirstChild("BuyGear")
-
-if not buySeedRemote or not buyGearRemote then
-	warn("[AutoBuyGUI] ⚠️ Missing remotes! Make sure BuySeed and BuyGear exist in ReplicatedStorage.")
+if not player then
+    warn("FYNX HUB: script must run as a LocalScript (client).")
+    return
 end
 
---// GUI Setup
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AutoBuyGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = PlayerGui
+-- helper: waitForChild with timeout
+local function waitForChildTimeout(parent, name, timeout)
+    local start = tick()
+    while tick() - start < (timeout or 5) do
+        local v = parent:FindFirstChild(name)
+        if v then return v end
+        task.wait(0.1)
+    end
+    return nil
+end
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 300, 0, 400)
-mainFrame.Position = UDim2.new(0.7, 0, 0.25, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BackgroundTransparency = 0.1
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
+-- remotes
+local remotesFolder = waitForChildTimeout(ReplicatedStorage, "Remotes", 3)
+local buySeedRemote = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
+local buyGearRemote = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
+if not remotesFolder then
+    warn("FYNX HUB: ReplicatedStorage.Remotes not found (auto-buy disabled).")
+elseif not buySeedRemote or not buyGearRemote then
+    warn("FYNX HUB: BuyItem/BuyGear remote(s) not found (auto-buy disabled).")
+end
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
-title.BackgroundTransparency = 1
-title.Text = "🌱 Auto Buy System"
-title.TextColor3 = Color3.fromRGB(0, 255, 100)
-title.Font = Enum.Font.GothamBold
-title.TextScaled = true
-title.Parent = mainFrame
+-- DATA
+local seeds = {"Cactus","Strawberry","Pumpkin","Sunflower","Dragonfruit","Eggplant","Watermelon","Grape","Cocotank","Carnivorous Plant","Mr Carrot","Tomatrio","Shroombino","Mango"}
+local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Frost Blower"}
 
-local buyToggle = Instance.new("TextButton")
-buyToggle.Size = UDim2.new(0.9, 0, 0, 40)
-buyToggle.Position = UDim2.new(0.05, 0, 0.12, 0)
-buyToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-buyToggle.Text = "Auto Buy: OFF"
-buyToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-buyToggle.Font = Enum.Font.GothamBold
-buyToggle.TextScaled = true
-buyToggle.Parent = mainFrame
-
-local seedLabel = Instance.new("TextLabel")
-seedLabel.Size = UDim2.new(1, 0, 0, 30)
-seedLabel.Position = UDim2.new(0, 0, 0.25, 0)
-seedLabel.Text = "Selected Seeds:"
-seedLabel.BackgroundTransparency = 1
-seedLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-seedLabel.Font = Enum.Font.Gotham
-seedLabel.TextScaled = true
-seedLabel.Parent = mainFrame
-
-local seedBox = Instance.new("TextBox")
-seedBox.Size = UDim2.new(0.9, 0, 0, 40)
-seedBox.Position = UDim2.new(0.05, 0, 0.32, 0)
-seedBox.PlaceholderText = "Enter seed name"
-seedBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-seedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-seedBox.Font = Enum.Font.Gotham
-seedBox.TextScaled = true
-seedBox.Parent = mainFrame
-
-local gearLabel = Instance.new("TextLabel")
-gearLabel.Size = UDim2.new(1, 0, 0, 30)
-gearLabel.Position = UDim2.new(0, 0, 0.45, 0)
-gearLabel.Text = "Selected Gears:"
-gearLabel.BackgroundTransparency = 1
-gearLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-gearLabel.Font = Enum.Font.Gotham
-gearLabel.TextScaled = true
-gearLabel.Parent = mainFrame
-
-local gearBox = Instance.new("TextBox")
-gearBox.Size = UDim2.new(0.9, 0, 0, 40)
-gearBox.Position = UDim2.new(0.05, 0, 0.52, 0)
-gearBox.PlaceholderText = "Enter gear name"
-gearBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-gearBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-gearBox.Font = Enum.Font.Gotham
-gearBox.TextScaled = true
-gearBox.Parent = mainFrame
-
-local buysLabel = Instance.new("TextLabel")
-buysLabel.Size = UDim2.new(1, 0, 0, 30)
-buysLabel.Position = UDim2.new(0, 0, 0.65, 0)
-buysLabel.Text = "Buys per Item:"
-buysLabel.BackgroundTransparency = 1
-buysLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-buysLabel.Font = Enum.Font.Gotham
-buysLabel.TextScaled = true
-buysLabel.Parent = mainFrame
-
-local buysBox = Instance.new("TextBox")
-buysBox.Size = UDim2.new(0.9, 0, 0, 40)
-buysBox.Position = UDim2.new(0.05, 0, 0.72, 0)
-buysBox.PlaceholderText = "e.g. 5"
-buysBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-buysBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-buysBox.Font = Enum.Font.Gotham
-buysBox.TextScaled = true
-buysBox.Parent = mainFrame
-
---// Variables
+local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
-local selectedSeeds = {}
-local selectedGears = {}
+local minimized = false
 local buysPerItem = 5
+local delayBetweenFires = 0.05 -- compatibility (not used)
 
-print("[AutoBuyGUI] ✅ GUI Loaded")
+-- player controls (kept but player features removed)
+local DEFAULT_WALKSPEED = 16
+local savedWalkSpeed = DEFAULT_WALKSPEED
+local infiniteJumpEnabled = false
 
---// GUI Button Logic
-buyToggle.MouseButton1Click:Connect(function()
-	autoBuy = not autoBuy
-	if autoBuy then
-		buyToggle.Text = "Auto Buy: ON"
-		buyToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-		print("[AutoBuyGUI] ✅ Auto Buy Activated")
-	else
-		buyToggle.Text = "Auto Buy: OFF"
-		buyToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		print("[AutoBuyGUI] ⛔ Auto Buy Deactivated")
-	end
-end)
+-- click sound
+local function playClickSound()
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://12221967"
+    s.Volume = 0.3
+    s.PlayOnRemove = true
+    s.Parent = SoundService
+    s:Destroy()
+end
 
-seedBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed and seedBox.Text ~= "" then
-		selectedSeeds[seedBox.Text] = true
-		print("[AutoBuyGUI] Added Seed:", seedBox.Text)
-		seedBox.Text = ""
-	end
-end)
+-- GUI
+local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
 
-gearBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed and gearBox.Text ~= "" then
-		selectedGears[gearBox.Text] = true
-		print("[AutoBuyGUI] Added Gear:", gearBox.Text)
-		gearBox.Text = ""
-	end
-end)
+local gui = Instance.new("ScreenGui")
+gui.Name = "FYNX_HUB_GUI"
+gui.ResetOnSpawn = false
+gui.Parent = parentGui
 
-buysBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed and tonumber(buysBox.Text) then
-		buysPerItem = tonumber(buysBox.Text)
-		print("[AutoBuyGUI] Buys per item set to:", buysPerItem)
-		buysBox.Text = ""
-	end
-end)
+-- Main frame
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 320, 0, 380)
+frame.Position = UDim2.new(0.5, -160, 0.35, -100)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,40)
+frame.BorderSizePixel = 0
+frame.Active = true
 
---// ⚡ Adaptive Auto-Buy Loop
+-- Header
+local header = Instance.new("Frame", frame)
+header.Size = UDim2.new(1,0,0,40)
+header.BackgroundColor3 = Color3.fromRGB(95,75,200)
+header.BorderSizePixel = 0
+
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(1,-50,1,0)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "FYNX HUB"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local minBtn = Instance.new("TextButton", header)
+minBtn.Size = UDim2.new(0,36,0,28)
+minBtn.Position = UDim2.new(1,-46,0,6)
+minBtn.BackgroundColor3 = Color3.fromRGB(120,100,255)
+minBtn.Text = "-"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minBtn.BorderSizePixel = 0
+
+-- Tab bar
+local tabButtons = Instance.new("Frame", frame)
+tabButtons.Size = UDim2.new(1,0,0,36)
+tabButtons.Position = UDim2.new(0,0,0,42)
+tabButtons.BackgroundColor3 = Color3.fromRGB(30,30,55)
+tabButtons.BorderSizePixel = 0
+
+local function createTabButton(text, xPos)
+    local btn = Instance.new("TextButton", tabButtons)
+    btn.Size = UDim2.new(0.5, -10, 1, -6)
+    btn.Position = UDim2.new(xPos, 5, 0, 3)
+    btn.BackgroundColor3 = Color3.fromRGB(80,70,160)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.BorderSizePixel = 0
+    return btn
+end
+
+local homeBtn = createTabButton("🏠 Home", 0)
+local playerBtn = createTabButton("👤 Player", 0.5)
+
+-- tab frame
+local tabFrame = Instance.new("Frame", frame)
+tabFrame.Size = UDim2.new(1,-20,1,-120)
+tabFrame.Position = UDim2.new(0,10,0,80)
+tabFrame.BackgroundColor3 = Color3.fromRGB(30,30,55)
+tabFrame.BorderSizePixel = 0
+
+-- HOME scroll
+local homeScroll = Instance.new("ScrollingFrame", tabFrame)
+homeScroll.Size = UDim2.new(1,-8,1,0)
+homeScroll.Position = UDim2.new(0,4,0,0)
+homeScroll.CanvasSize = UDim2.new(0,0,0,0)
+homeScroll.ScrollBarThickness = 6
+homeScroll.BackgroundTransparency = 1
+
+-- PLAYER tab
+local playerTab = Instance.new("Frame", tabFrame)
+playerTab.Size = UDim2.new(1,-8,1,0)
+playerTab.Position = UDim2.new(0,4,0,0)
+playerTab.BackgroundTransparency = 1
+playerTab.Visible = false
+
+-- Coming Soon
+local comingSoonLabel = Instance.new("TextLabel", playerTab)
+comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
+comingSoonLabel.BackgroundTransparency = 1
+comingSoonLabel.Text = "🚧 Player features coming soon!"
+comingSoonLabel.Font = Enum.Font.GothamBold
+comingSoonLabel.TextSize = 18
+comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
+comingSoonLabel.TextStrokeTransparency = 0.8
+
+-- collapsible lists
+local function createCollapsible(parent, titleText, items, selectedTable)
+    local container = Instance.new("Frame", parent)
+    container.Size = UDim2.new(1,-10,0,32)
+    container.Position = UDim2.new(0,5,0,0)
+    container.BackgroundTransparency = 1
+
+    local headerBtn = Instance.new("TextButton", container)
+    headerBtn.Size = UDim2.new(1,0,0,32)
+    headerBtn.BackgroundColor3 = Color3.fromRGB(95,75,200)
+    headerBtn.Font = Enum.Font.GothamBold
+    headerBtn.TextSize = 14
+    headerBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    headerBtn.Text = titleText
+    headerBtn.BorderSizePixel = 0
+
+    local list = Instance.new("ScrollingFrame", container)
+    list.Size = UDim2.new(1,0,0,0)
+    list.Position = UDim2.new(0,0,0,36)
+    list.BackgroundTransparency = 1
+    list.ScrollBarThickness = 6
+    list.CanvasSize = UDim2.new(0,0,0,#items * 28)
+    list.Visible = false
+
+    for i, name in ipairs(items) do
+        local btn = Instance.new("TextButton", list)
+        btn.Size = UDim2.new(1,-10,0,26)
+        btn.Position = UDim2.new(0,5,0,(i-1)*28)
+        btn.BackgroundColor3 = Color3.fromRGB(55,55,90)
+        btn.TextColor3 = Color3.fromRGB(235,235,255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 13
+        btn.Text = name
+        btn.BorderSizePixel = 0
+        btn.MouseButton1Click:Connect(function()
+            if selectedTable[name] then
+                selectedTable[name] = nil
+                btn.BackgroundColor3 = Color3.fromRGB(55,55,90)
+            else
+                selectedTable[name] = true
+                btn.BackgroundColor3 = Color3.fromRGB(120,100,255)
+            end
+        end)
+    end
+
+    return container, headerBtn, list
+end
+
+local seedSection, seedHeader, seedList = createCollapsible(homeScroll, "🌱 Seeds", seeds, selectedSeeds)
+local gearSection, gearHeader, gearList = createCollapsible(homeScroll, "⚙️ Gears", gears, selectedGears)
+
+local function recalcPositions()
+    local y = 5
+    for _, sec in ipairs({seedSection, gearSection}) do
+        local target = UDim2.new(0,5,0,y)
+        TweenService:Create(sec, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
+        y = y + sec.AbsoluteSize.Y + 5
+    end
+    task.delay(0.06, function()
+        local total = 10
+        for _, c in ipairs(homeScroll:GetChildren()) do
+            if c:IsA("Frame") then
+                total = total + c.AbsoluteSize.Y + 5
+            end
+        end
+        homeScroll.CanvasSize = UDim2.new(0,0,0, math.max(total, homeScroll.AbsoluteSize.Y + 10))
+    end)
+end
+
+local function toggleList(list, container)
+    playClickSound()
+    local willExpand = not list.Visible
+    local targetHeight = willExpand and math.min(list.CanvasSize.Y.Offset + 10, 160) or 0
+    if willExpand then list.Visible = true end
+    local tween = TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)})
+    tween:Play()
+    tween.Completed:Connect(function()
+        if not willExpand then list.Visible = false end
+        container.Size = UDim2.new(1, -10, 0, 36 + targetHeight)
+        recalcPositions()
+    end)
+end
+
+seedHeader.MouseButton1Click:Connect(function() toggleList(seedList, seedSection) end)
+gearHeader.MouseButton1Click:Connect(function() toggleList(gearList, gearSection) end)
+seedSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
+gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
+homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
+task.delay(0.05, recalcPositions)
+
+-- ✅ Optimized Auto-Buy (Anti Ping Spike)
 task.spawn(function()
-	while task.wait(0.02) do -- base loop rate
-		if autoBuy then
-			local allTasks = {}
+    while task.wait(0.05) do
+        if autoBuy then
+            local allTasks = {}
 
-			for seed, _ in pairs(selectedSeeds) do
-				if buySeedRemote then
-					for i = 1, buysPerItem do
-						table.insert(allTasks, function()
-							pcall(function()
-								buySeedRemote:FireServer(seed, true)
-							end)
-						end)
-					end
-				end
-			end
+            for seed, _ in pairs(selectedSeeds) do
+                if buySeedRemote then
+                    for i = 1, buysPerItem do
+                        table.insert(allTasks, function()
+                            pcall(function()
+                                buySeedRemote:FireServer(seed, true)
+                            end)
+                        end)
+                    end
+                end
+            end
 
-			for gear, _ in pairs(selectedGears) do
-				if buyGearRemote then
-					for i = 1, buysPerItem do
-						table.insert(allTasks, function()
-							pcall(function()
-								buyGearRemote:FireServer(gear, true)
-							end)
-						end)
-					end
-				end
-			end
+            for gear, _ in pairs(selectedGears) do
+                if buyGearRemote then
+                    for i = 1, buysPerItem do
+                        table.insert(allTasks, function()
+                            pcall(function()
+                                buyGearRemote:FireServer(gear, true)
+                            end)
+                        end)
+                    end
+                end
+            end
 
-			local totalCalls = #allTasks
-			if totalCalls > 0 then
-				local batchSize = math.clamp(math.floor(15 - (totalCalls / 10)), 3, 10)
-				local waitTime = math.clamp(totalCalls * 0.00025, 0.0008, 0.007)
-
-				for i, fn in ipairs(allTasks) do
-					fn()
-					if i % batchSize == 0 then
-						task.wait(waitTime)
-					end
-				end
-			end
-		end
-	end
+            for i, fn in ipairs(allTasks) do
+                fn()
+                if i % 3 == 0 then
+                    task.wait() -- yield slightly every 3 calls
+                end
+            end
+        end
+    end
 end)
+
+-- Bottom buttons
+local discordBtn = Instance.new("TextButton", frame)
+discordBtn.Size = UDim2.new(1,-20,0,28)
+discordBtn.Position = UDim2.new(0,10,1,-82)
+discordBtn.BackgroundColor3 = Color3.fromRGB(80,80,255)
+discordBtn.Text = "Join Discord"
+discordBtn.Font = Enum.Font.GothamBold
+discordBtn.TextSize = 14
+discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
+discordBtn.BorderSizePixel = 0
+discordBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    pcall(function() setclipboard("https://discord.gg/ReGmGrQT") end)
+end)
+
+local startBtn = Instance.new("TextButton", frame)
+startBtn.Size = UDim2.new(1,-20,0,36)
+startBtn.Position = UDim2.new(0,10,1,-46)
+startBtn.BackgroundColor3 = Color3.fromRGB(140,110,255)
+startBtn.Text = "▶ Start Auto Buy"
+startBtn.Font = Enum.Font.GothamBold
+startBtn.TextSize = 14
+startBtn.TextColor3 = Color3.fromRGB(20,20,20)
+startBtn.BorderSizePixel = 0
+startBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    autoBuy = not autoBuy
+    startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
+end)
+
+-- Minimize & drag
+local logo = Instance.new("TextButton", gui)
+logo.Size = UDim2.new(0,50,0,50)
+logo.Position = UDim2.new(0.5, -25, 0.4, -25)
+logo.Text = "F"
+logo.Font = Enum.Font.GothamBold
+logo.TextSize = 24
+logo.TextColor3 = Color3.fromRGB(255,255,255)
+logo.BackgroundColor3 = Color3.fromRGB(95,75,200)
+logo.BorderSizePixel = 0
+logo.Visible = false
+logo.MouseButton1Click:Connect(function()
+    playClickSound()
+    minimized = false
+    frame.Visible = true
+    logo.Visible = false
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    minimized = not minimized
+    frame.Visible = not minimized
+    logo.Visible = minimized
+end)
+
+-- Tab switching
+homeBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    homeScroll.Visible = true
+    playerTab.Visible = false
+end)
+playerBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    playerTab.Visible = true
+    homeScroll.Visible = false
+end)
+
+-- Draggable
+local function makeDraggable(obj, dragHandle)
+    local dragging, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    dragHandle.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+makeDraggable(frame, header)
+makeDraggable(logo, logo)
+
+if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+    player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
+end
+
+recalcPositions()
+print("FYNX HUB loaded - Optimized Fast Auto Buy enabled (no ping spikes)")

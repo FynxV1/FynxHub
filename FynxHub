@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 if not player then
@@ -12,7 +13,37 @@ if not player then
     return
 end
 
--- helper: waitForChild with timeout
+-- =========================
+-- Local Settings Storage
+-- =========================
+local SETTINGS_FILE = "FYNX_HUB_SETTINGS.json"
+local settings = {
+    selectedSeeds = {},
+    selectedGears = {},
+    walkSpeed = 16,
+    infiniteJump = false
+}
+
+-- Load settings if exists
+if isfile and isfile(SETTINGS_FILE) then
+    local success, data = pcall(readfile, SETTINGS_FILE)
+    if success then
+        local ok, decoded = pcall(HttpService.JSONDecode, HttpService, data)
+        if ok and type(decoded) == "table" then
+            settings = decoded
+        end
+    end
+end
+
+local function saveSettings()
+    if writefile then
+        pcall(writefile, SETTINGS_FILE, HttpService:JSONEncode(settings))
+    end
+end
+
+-- =========================
+-- Remotes & Data
+-- =========================
 local function waitForChildTimeout(parent, name, timeout)
     local start = tick()
     while tick() - start < (timeout or 5) do
@@ -23,7 +54,6 @@ local function waitForChildTimeout(parent, name, timeout)
     return nil
 end
 
--- remotes
 local remotesFolder = waitForChildTimeout(ReplicatedStorage, "Remotes", 3)
 local buySeedRemote = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
 local buyGearRemote = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
@@ -33,7 +63,6 @@ elseif not buySeedRemote or not buyGearRemote then
     warn("FYNX HUB: BuyItem/BuyGear remote(s) not found (auto-buy disabled).")
 end
 
--- DATA
 local seeds = {"Cactus","Strawberry","Pumpkin","Sunflower","Dragonfruit","Eggplant","Watermelon","Grape","Cocotank","Carnivorous Plant","Mr Carrot","Tomatrio","Shroombino","Mango"}
 local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Frost Blower"}
 
@@ -41,14 +70,14 @@ local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
 local buysPerItem = 5
-local delayBetweenFires = 0.05 -- compatibility (not used)
-local infiniteJumpEnabled = false
-
--- player controls
+local delayBetweenFires = 0.05
+local infiniteJumpEnabled = settings.infiniteJump
 local DEFAULT_WALKSPEED = 16
-local savedWalkSpeed = DEFAULT_WALKSPEED
+local savedWalkSpeed = settings.walkSpeed
 
--- click sound
+-- =========================
+-- Click Sound
+-- =========================
 local function playClickSound()
     local s = Instance.new("Sound")
     s.SoundId = "rbxassetid://12221967"
@@ -58,15 +87,15 @@ local function playClickSound()
     s:Destroy()
 end
 
--- GUI
+-- =========================
+-- GUI Setup
+-- =========================
 local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
-
 local gui = Instance.new("ScreenGui")
 gui.Name = "FYNX_HUB_GUI"
 gui.ResetOnSpawn = false
 gui.Parent = parentGui
 
--- Main frame
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 320, 0, 380)
 frame.Position = UDim2.new(0.5, -160, 0.35, -100)
@@ -74,7 +103,6 @@ frame.BackgroundColor3 = Color3.fromRGB(25,25,40)
 frame.BorderSizePixel = 0
 frame.Active = true
 
--- Header
 local header = Instance.new("Frame", frame)
 header.Size = UDim2.new(1,0,0,40)
 header.BackgroundColor3 = Color3.fromRGB(95,75,200)
@@ -99,7 +127,6 @@ minBtn.Font = Enum.Font.GothamBold
 minBtn.TextColor3 = Color3.fromRGB(255,255,255)
 minBtn.BorderSizePixel = 0
 
--- Tab bar
 local tabButtons = Instance.new("Frame", frame)
 tabButtons.Size = UDim2.new(1,0,0,36)
 tabButtons.Position = UDim2.new(0,0,0,42)
@@ -122,14 +149,12 @@ end
 local homeBtn = createTabButton("🏠 Home", 0)
 local playerBtn = createTabButton("👤 Player", 0.5)
 
--- tab frame
 local tabFrame = Instance.new("Frame", frame)
 tabFrame.Size = UDim2.new(1,-20,1,-120)
 tabFrame.Position = UDim2.new(0,10,0,80)
 tabFrame.BackgroundColor3 = Color3.fromRGB(30,30,55)
 tabFrame.BorderSizePixel = 0
 
--- HOME scroll
 local homeScroll = Instance.new("ScrollingFrame", tabFrame)
 homeScroll.Size = UDim2.new(1,-8,1,0)
 homeScroll.Position = UDim2.new(0,4,0,0)
@@ -137,14 +162,12 @@ homeScroll.CanvasSize = UDim2.new(0,0,0,0)
 homeScroll.ScrollBarThickness = 6
 homeScroll.BackgroundTransparency = 1
 
--- PLAYER tab
 local playerTab = Instance.new("Frame", tabFrame)
 playerTab.Size = UDim2.new(1,-8,1,0)
 playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- Coming Soon
 local comingSoonLabel = Instance.new("TextLabel", playerTab)
 comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
 comingSoonLabel.BackgroundTransparency = 1
@@ -154,7 +177,9 @@ comingSoonLabel.TextSize = 18
 comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
 comingSoonLabel.TextStrokeTransparency = 0.8
 
--- collapsible lists
+-- =========================
+-- Collapsible Sections
+-- =========================
 local function createCollapsible(parent, titleText, items, selectedTable)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(1,-10,0,32)
@@ -188,6 +213,10 @@ local function createCollapsible(parent, titleText, items, selectedTable)
         btn.TextSize = 13
         btn.Text = name
         btn.BorderSizePixel = 0
+        if (selectedTable[name] or settings.selectedSeeds[name] or settings.selectedGears[name]) then
+            btn.BackgroundColor3 = Color3.fromRGB(120,100,255)
+            selectedTable[name] = true
+        end
         btn.MouseButton1Click:Connect(function()
             if selectedTable[name] then
                 selectedTable[name] = nil
@@ -196,6 +225,13 @@ local function createCollapsible(parent, titleText, items, selectedTable)
                 selectedTable[name] = true
                 btn.BackgroundColor3 = Color3.fromRGB(120,100,255)
             end
+            -- Save settings
+            if seeds[1] == items[1] then
+                settings.selectedSeeds = selectedTable
+            else
+                settings.selectedGears = selectedTable
+            end
+            saveSettings()
         end)
     end
 
@@ -244,47 +280,42 @@ gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 task.delay(0.05, recalcPositions)
 
--- ✅ Optimized Auto-Buy (Anti Ping Spike)
+-- =========================
+-- Optimized Auto-Buy
+-- =========================
 task.spawn(function()
     while task.wait(0.05) do
         if autoBuy then
             local allTasks = {}
-
             for seed, _ in pairs(selectedSeeds) do
                 if buySeedRemote then
-                    for i = 1, buysPerItem do
-                        table.insert(allTasks, function()
-                            pcall(function()
-                                buySeedRemote:FireServer(seed, true)
-                            end)
+                    for i=1,buysPerItem do
+                        table.insert(allTasks,function()
+                            pcall(function() buySeedRemote:FireServer(seed,true) end)
                         end)
                     end
                 end
             end
-
             for gear, _ in pairs(selectedGears) do
                 if buyGearRemote then
-                    for i = 1, buysPerItem do
-                        table.insert(allTasks, function()
-                            pcall(function()
-                                buyGearRemote:FireServer(gear, true)
-                            end)
+                    for i=1,buysPerItem do
+                        table.insert(allTasks,function()
+                            pcall(function() buyGearRemote:FireServer(gear,true) end)
                         end)
                     end
                 end
             end
-
-            for i, fn in ipairs(allTasks) do
+            for i,fn in ipairs(allTasks) do
                 fn()
-                if i % 3 == 0 then
-                    task.wait() -- yield slightly every 3 calls
-                end
+                if i%7==0 then task.wait() end
             end
         end
     end
 end)
 
--- Bottom buttons
+-- =========================
+-- Bottom Buttons
+-- =========================
 local discordBtn = Instance.new("TextButton", frame)
 discordBtn.Size = UDim2.new(1,-20,0,28)
 discordBtn.Position = UDim2.new(0,10,1,-82)
@@ -314,7 +345,9 @@ startBtn.MouseButton1Click:Connect(function()
     startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
 end)
 
--- Minimize & drag
+-- =========================
+-- Minimize & Drag
+-- =========================
 local logo = Instance.new("TextButton", gui)
 logo.Size = UDim2.new(0,50,0,50)
 logo.Position = UDim2.new(0.5, -25, 0.4, -25)
@@ -339,7 +372,6 @@ minBtn.MouseButton1Click:Connect(function()
     logo.Visible = minimized
 end)
 
--- Tab switching
 homeBtn.MouseButton1Click:Connect(function()
     playClickSound()
     homeScroll.Visible = true
@@ -351,7 +383,6 @@ playerBtn.MouseButton1Click:Connect(function()
     homeScroll.Visible = false
 end)
 
--- Draggable
 local function makeDraggable(obj, dragHandle)
     local dragging, dragStart, startPos
     local function update(input)
@@ -383,97 +414,73 @@ if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
     player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
 end
 
--- ==============================
--- PLAYER TAB FEATURES
--- WalkSpeed slider + Infinite Jump toggle (Mobile-friendly)
--- ==============================
-
+-- =========================
+-- Player Tab Features
+-- =========================
+-- WalkSpeed Slider
 local featureContainer = Instance.new("Frame", playerTab)
 featureContainer.Size = UDim2.new(1,0,1,0)
 featureContainer.BackgroundTransparency = 1
 
--- WalkSpeed Label
 local wsLabel = Instance.new("TextLabel", featureContainer)
-wsLabel.Size = UDim2.new(0.8,0,0,24)
-wsLabel.Position = UDim2.new(0.1,0,0,10)
+wsLabel.Size = UDim2.new(1,0,0,28)
+wsLabel.Position = UDim2.new(0,0,0,0)
 wsLabel.BackgroundTransparency = 1
+wsLabel.TextColor3 = Color3.fromRGB(255,255,255)
 wsLabel.Font = Enum.Font.GothamBold
 wsLabel.TextSize = 14
-wsLabel.TextColor3 = Color3.fromRGB(255,255,255)
-wsLabel.Text = "WalkSpeed: 16"
+wsLabel.Text = "WalkSpeed: "..savedWalkSpeed
 
--- WalkSpeed Slider
 local wsSlider = Instance.new("Frame", featureContainer)
-wsSlider.Size = UDim2.new(0.8,0,0,24)
+wsSlider.Size = UDim2.new(0.8,0,0,10)
 wsSlider.Position = UDim2.new(0.1,0,0,40)
 wsSlider.BackgroundColor3 = Color3.fromRGB(55,55,90)
 wsSlider.BorderSizePixel = 0
-wsSlider.ClipsDescendants = true
 
--- Mobile-friendly hitbox
-local wsTouchZone = Instance.new("TextButton", wsSlider)
-wsTouchZone.Size = UDim2.new(1,0,1,0)
-wsTouchZone.BackgroundTransparency = 1
-wsTouchZone.Text = ""
-wsTouchZone.AutoButtonColor = false
-
--- Slider Fill
 local wsFill = Instance.new("Frame", wsSlider)
-wsFill.Size = UDim2.new(0,0,1,0)
+wsFill.Size = UDim2.new((savedWalkSpeed-16)/(100-16),0,1,0)
 wsFill.BackgroundColor3 = Color3.fromRGB(120,100,255)
 wsFill.BorderSizePixel = 0
 
--- Slider Thumb
-local wsThumb = Instance.new("Frame", wsSlider)
-wsThumb.Size = UDim2.new(0,12,1,0)
-wsThumb.Position = UDim2.new(0,0,0,0)
+local wsThumb = Instance.new("TextButton", wsSlider)
+wsThumb.Size = UDim2.new(0,16,0,16)
 wsThumb.AnchorPoint = Vector2.new(0.5,0.5)
+wsThumb.Position = UDim2.new((savedWalkSpeed-16)/(100-16),0,0.5,0)
 wsThumb.BackgroundColor3 = Color3.fromRGB(180,150,255)
 wsThumb.BorderSizePixel = 0
+wsThumb.Text = ""
 
-local thumbGlow = Instance.new("UIStroke", wsThumb)
-thumbGlow.Color = Color3.fromRGB(200,170,255)
-thumbGlow.Thickness = 2
-thumbGlow.Transparency = 0.5
-
--- Dragging logic
 local dragging = false
-
 local function updateWalkSpeed(inputX)
     local sliderPos = wsSlider.AbsolutePosition.X
     local sliderSize = wsSlider.AbsoluteSize.X
     local relativeX = math.clamp(inputX - sliderPos, 0, sliderSize)
     local speed = math.floor(16 + (relativeX / sliderSize) * (100-16))
-    
     wsFill.Size = UDim2.new(relativeX / sliderSize,0,1,0)
     wsThumb.Position = UDim2.new(relativeX / sliderSize,0,0.5,0)
     wsLabel.Text = "WalkSpeed: "..speed
-    
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = speed
     end
+    settings.walkSpeed = speed
+    saveSettings()
 end
 
 local function startDrag(input)
     dragging = true
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        updateWalkSpeed(input.Position.X)
-    end
+    updateWalkSpeed(input.Position.X)
 end
-
 local function stopDrag(input)
     dragging = false
 end
 
 wsThumb.InputBegan:Connect(startDrag)
 wsThumb.InputEnded:Connect(stopDrag)
-wsTouchZone.InputBegan:Connect(startDrag)
-wsTouchZone.InputEnded:Connect(stopDrag)
 wsSlider.InputBegan:Connect(startDrag)
 wsSlider.InputEnded:Connect(stopDrag)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
         updateWalkSpeed(input.Position.X)
     end
 end)
@@ -487,11 +494,13 @@ infJumpBtn.Font = Enum.Font.GothamBold
 infJumpBtn.TextSize = 14
 infJumpBtn.TextColor3 = Color3.fromRGB(255,255,255)
 infJumpBtn.BorderSizePixel = 0
-infJumpBtn.Text = "Infinite Jump: OFF"
+infJumpBtn.Text = "Infinite Jump: "..(infiniteJumpEnabled and "ON" or "OFF")
 
 infJumpBtn.MouseButton1Click:Connect(function()
     infiniteJumpEnabled = not infiniteJumpEnabled
     infJumpBtn.Text = "Infinite Jump: "..(infiniteJumpEnabled and "ON" or "OFF")
+    settings.infiniteJump = infiniteJumpEnabled
+    saveSettings()
 end)
 
 UserInputService.JumpRequest:Connect(function()
@@ -501,4 +510,4 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 recalcPositions()
-print("FYNX HUB loaded - Optimized Fast Auto Buy + Player features enabled")
+print("FYNX HUB loaded - Optimized Fast Auto Buy + Player features + saved settings enabled")

@@ -17,10 +17,10 @@ end
 -- helper: waitForChild with timeout
 local function waitForChildTimeout(parent, name, timeout)
     local start = tick()
-    while tick() - start < (timeout or 5) do
+    while tick() - start < (timeout or 7) do
         local v = parent:FindFirstChild(name)
         if v then return v end
-        task.wait(0.1)
+        task.wait(0)
     end
     return nil
 end

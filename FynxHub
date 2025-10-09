@@ -1,12 +1,12 @@
--- FYNX HUB (FINAL CLEAN) - Fast Auto Buy integrated (NO DELAY)
--- Keeps all original GUI layout, only Player tab shows "Coming Soon!"
--- Auto-buy uses direct FireServer calls per seed/gear with NO delay
+-- FYNX HUB (FINAL SILENT VERSION)
+-- No WalkSpeed / No Infinite Jump / No Sounds
+-- Auto-Buy Only + "Coming Soon" Player Tab
+-- Fully Draggable (PC + Mobile)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local SoundService = game:GetService("SoundService")
 
 local player = Players.LocalPlayer
 if not player then
@@ -43,16 +43,6 @@ local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
 local buysPerItem = 5 -- how many times to buy each selected item per loop
-
--- click sound
-local function playClickSound()
-    local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://12221967"
-    s.Volume = 0.3
-    s.PlayOnRemove = true
-    s.Parent = SoundService
-    s:Destroy()
-end
 
 -- GUI parent
 local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
@@ -144,15 +134,12 @@ playerTab.Visible = false
 -- Coming Soon placeholder
 local comingSoonLabel = Instance.new("TextLabel", playerTab)
 comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
-comingSoonLabel.Position = UDim2.new(0, 0, 0, 0)
 comingSoonLabel.BackgroundTransparency = 1
 comingSoonLabel.Text = "🚧 Player features coming soon!"
 comingSoonLabel.Font = Enum.Font.GothamBold
 comingSoonLabel.TextSize = 18
 comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
 comingSoonLabel.TextStrokeTransparency = 0.8
-comingSoonLabel.TextYAlignment = Enum.TextYAlignment.Center
-comingSoonLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- collapsible helper (for home seeds/gears)
 local function createCollapsible(parent, titleText, items, selectedTable)
@@ -210,31 +197,18 @@ local gearSection, gearHeader, gearList = createCollapsible(homeScroll, "⚙️ 
 local function recalcPositions()
     local y = 5
     for _, sec in ipairs({seedSection, gearSection}) do
-        local target = UDim2.new(0,5,0,y)
-        TweenService:Create(sec, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
-        local ht = sec.AbsoluteSize.Y
-        if ht == 0 then ht = sec.Size.Y.Offset end
-        y = y + ht + 5
+        sec.Position = UDim2.new(0,5,0,y)
+        y = y + sec.AbsoluteSize.Y + 5
     end
-    task.delay(0.06, function()
-        local total = 10
-        for _, c in ipairs(homeScroll:GetChildren()) do
-            if c:IsA("Frame") then
-                total = total + c.AbsoluteSize.Y + 5
-            end
-        end
-        homeScroll.CanvasSize = UDim2.new(0,0,0, math.max(total, homeScroll.AbsoluteSize.Y + 10))
-    end)
+    homeScroll.CanvasSize = UDim2.new(0,0,0, math.max(y, homeScroll.AbsoluteSize.Y + 10))
 end
 
 local function toggleList(list, container)
-    playClickSound()
     local willExpand = not list.Visible
     local targetHeight = willExpand and math.min(list.CanvasSize.Y.Offset + 10, 160) or 0
     if willExpand then list.Visible = true end
-    local tween = TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)})
-    tween:Play()
-    tween.Completed:Connect(function()
+    TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)}):Play()
+    task.delay(0.3, function()
         if not willExpand then list.Visible = false end
         container.Size = UDim2.new(1, -10, 0, 36 + targetHeight)
         recalcPositions()
@@ -243,12 +217,8 @@ end
 
 seedHeader.MouseButton1Click:Connect(function() toggleList(seedList, seedSection) end)
 gearHeader.MouseButton1Click:Connect(function() toggleList(gearList, gearSection) end)
-seedSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
-gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
-homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
-task.delay(0.05, recalcPositions)
 
--- Ultra-fast auto-buy loop (NO DELAY version)
+-- Auto-buy loop (no delay)
 task.spawn(function()
     while task.wait(0.01) do
         if autoBuy then
@@ -285,7 +255,6 @@ discordBtn.TextSize = 14
 discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
 discordBtn.BorderSizePixel = 0
 discordBtn.MouseButton1Click:Connect(function()
-    playClickSound()
     pcall(function() setclipboard("https://discord.gg/ReGmGrQT") end)
 end)
 
@@ -299,12 +268,11 @@ startBtn.TextSize = 14
 startBtn.TextColor3 = Color3.fromRGB(20,20,20)
 startBtn.BorderSizePixel = 0
 startBtn.MouseButton1Click:Connect(function()
-    playClickSound()
     autoBuy = not autoBuy
     startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
 end)
 
--- Minimizing & Logo
+-- Minimize + Logo
 local logo = Instance.new("TextButton", gui)
 logo.Size = UDim2.new(0,50,0,50)
 logo.Position = UDim2.new(0.5, -25, 0.4, -25)
@@ -316,7 +284,7 @@ logo.BackgroundColor3 = Color3.fromRGB(95,75,200)
 logo.BorderSizePixel = 0
 logo.Visible = false
 
--- Make frame & logo draggable (PC + Mobile)
+-- Draggable (PC + Mobile)
 local function makeDraggable(obj, dragHandle)
     local dragging, dragStart, startPos
     local function update(input)
@@ -348,14 +316,12 @@ makeDraggable(logo, logo)
 
 -- Minimize toggle
 logo.MouseButton1Click:Connect(function()
-    playClickSound()
     minimized = false
     frame.Visible = true
     logo.Visible = false
 end)
 
 minBtn.MouseButton1Click:Connect(function()
-    playClickSound()
     minimized = not minimized
     frame.Visible = not minimized
     logo.Visible = minimized
@@ -363,18 +329,13 @@ end)
 
 -- Tab switching
 homeBtn.MouseButton1Click:Connect(function()
-    playClickSound()
     homeScroll.Visible = true
     playerTab.Visible = false
 end)
 
 playerBtn.MouseButton1Click:Connect(function()
-    playClickSound()
     playerTab.Visible = true
     homeScroll.Visible = false
 end)
 
--- initial layout
-recalcPositions()
-
-print("✅ FYNX HUB loaded - Fast Auto Buy enabled (NO delay)")
+print("✅ FYNX HUB loaded - Silent Auto Buy version")

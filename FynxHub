@@ -307,7 +307,7 @@ task.spawn(function()
             end
             for i,fn in ipairs(allTasks) do
                 fn()
-                if i%7==0 then task.wait() end
+                if i%5==0 then task.wait() end
             end
         end
     end

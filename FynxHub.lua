@@ -1,4 +1,4 @@
--- FYNX HUB
+-- FYNX HUB v2
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,11 +25,11 @@ end
 
 -- remotes
 local remotesFolder = waitForChildTimeout(ReplicatedStorage, "Remotes", 3)
-local buySeedEvent = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
-local buyGearEvent = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
+local buySeedRemote = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
+local buyGearRemote = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
 if not remotesFolder then
     warn("FYNX HUB: ReplicatedStorage.Remotes not found (auto-buy disabled).")
-elseif not buySeedEvent or not buyGearEvent then
+elseif not buySeedRemote or not buyGearRemote then
     warn("FYNX HUB: BuyItem/BuyGear remote(s) not found (auto-buy disabled).")
 end
 
@@ -41,8 +41,9 @@ local selectedSeeds, selectedGears = {}, {}
 local autoBuy = false
 local minimized = false
 local buysPerItem = 5
+local delayBetweenFires = 0.05 -- compatibility (not used)
 
--- player controls
+-- player controls (kept but player features removed)
 local DEFAULT_WALKSPEED = 16
 local savedWalkSpeed = DEFAULT_WALKSPEED
 local infiniteJumpEnabled = false
@@ -57,7 +58,7 @@ local function playClickSound()
     s:Destroy()
 end
 
--- GUI parent
+-- GUI
 local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
 
 local gui = Instance.new("ScreenGui")
@@ -76,7 +77,6 @@ frame.Active = true
 -- Header
 local header = Instance.new("Frame", frame)
 header.Size = UDim2.new(1,0,0,40)
-header.Position = UDim2.new(0,0,0,0)
 header.BackgroundColor3 = Color3.fromRGB(95,75,200)
 header.BorderSizePixel = 0
 
@@ -144,7 +144,17 @@ playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- collapsible helper
+-- Coming Soon
+local comingSoonLabel = Instance.new("TextLabel", playerTab)
+comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
+comingSoonLabel.BackgroundTransparency = 1
+comingSoonLabel.Text = "🚧 Player features coming soon!"
+comingSoonLabel.Font = Enum.Font.GothamBold
+comingSoonLabel.TextSize = 18
+comingSoonLabel.TextColor3 = Color3.fromRGB(180,180,255)
+comingSoonLabel.TextStrokeTransparency = 0.8
+
+-- collapsible lists
 local function createCollapsible(parent, titleText, items, selectedTable)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(1,-10,0,32)
@@ -153,7 +163,6 @@ local function createCollapsible(parent, titleText, items, selectedTable)
 
     local headerBtn = Instance.new("TextButton", container)
     headerBtn.Size = UDim2.new(1,0,0,32)
-    headerBtn.Position = UDim2.new(0,0,0,0)
     headerBtn.BackgroundColor3 = Color3.fromRGB(95,75,200)
     headerBtn.Font = Enum.Font.GothamBold
     headerBtn.TextSize = 14
@@ -179,7 +188,6 @@ local function createCollapsible(parent, titleText, items, selectedTable)
         btn.TextSize = 13
         btn.Text = name
         btn.BorderSizePixel = 0
-
         btn.MouseButton1Click:Connect(function()
             if selectedTable[name] then
                 selectedTable[name] = nil
@@ -201,10 +209,8 @@ local function recalcPositions()
     local y = 5
     for _, sec in ipairs({seedSection, gearSection}) do
         local target = UDim2.new(0,5,0,y)
-        TweenService:Create(sec, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
-        local ht = sec.AbsoluteSize.Y
-        if ht == 0 then ht = sec.Size.Y.Offset end
-        y = y + ht + 5
+        TweenService:Create(sec, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = target}):Play()
+        y = y + sec.AbsoluteSize.Y + 5
     end
     task.delay(0.06, function()
         local total = 10
@@ -222,7 +228,7 @@ local function toggleList(list, container)
     local willExpand = not list.Visible
     local targetHeight = willExpand and math.min(list.CanvasSize.Y.Offset + 10, 160) or 0
     if willExpand then list.Visible = true end
-    local tween = TweenService:Create(list, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)})
+    local tween = TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)})
     tween:Play()
     tween.Completed:Connect(function()
         if not willExpand then list.Visible = false end
@@ -238,188 +244,40 @@ gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 task.delay(0.05, recalcPositions)
 
--- PLAYER scroll
-local playerScroll = Instance.new("ScrollingFrame", playerTab)
-playerScroll.Size = UDim2.new(1,-8,1,0)
-playerScroll.Position = UDim2.new(0,4,0,0)
-playerScroll.BackgroundTransparency = 1
-playerScroll.ScrollBarThickness = 6
-playerScroll.CanvasSize = UDim2.new(0,0,0,0)
-
-local function updatePlayerCanvas()
-    task.delay(0.05, function()
-        local tot = 10
-        for _, c in ipairs(playerScroll:GetChildren()) do
-            if c:IsA("Frame") then
-                tot = tot + c.AbsoluteSize.Y + 5
-            end
-        end
-        playerScroll.CanvasSize = UDim2.new(0,0,0, math.max(tot, playerScroll.AbsoluteSize.Y + 10))
-    end)
-end
-
--- Player controls
-local function makePlayerSection(parent, title, y)
-    local sec = Instance.new("Frame", parent)
-    sec.Size = UDim2.new(1, -10, 0, 120)
-    sec.Position = UDim2.new(0, 5, 0, y or 5)
-    sec.BackgroundTransparency = 1
-    local header = Instance.new("TextLabel", sec)
-    header.Size = UDim2.new(1, 0, 0, 26)
-    header.Position = UDim2.new(0, 0, 0, 0)
-    header.BackgroundTransparency = 1
-    header.Text = title
-    header.Font = Enum.Font.GothamBold
-    header.TextSize = 14
-    header.TextColor3 = Color3.fromRGB(240,240,255)
-    header.TextXAlignment = Enum.TextXAlignment.Left
-    return sec
-end
-
-local walkSec = makePlayerSection(playerScroll, "💨 Walk Speed (1-100)", 5)
-local speedBox = Instance.new("TextBox", walkSec)
-speedBox.Size = UDim2.new(1, -20, 0, 30)
-speedBox.Position = UDim2.new(0, 10, 0, 36)
-speedBox.PlaceholderText = tostring(DEFAULT_WALKSPEED)
-speedBox.Text = ""
-speedBox.ClearTextOnFocus = false
-speedBox.Font = Enum.Font.Gotham
-speedBox.TextSize = 14
-speedBox.TextColor3 = Color3.fromRGB(20,20,20)
-speedBox.BackgroundColor3 = Color3.fromRGB(235,235,235)
-speedBox.BorderSizePixel = 0
-
-local setBtn = Instance.new("TextButton", walkSec)
-setBtn.Size = UDim2.new(1, -20, 0, 30)
-setBtn.Position = UDim2.new(0, 10, 0, 72)
-setBtn.Text = "Set Speed"
-setBtn.Font = Enum.Font.GothamBold
-setBtn.TextSize = 14
-setBtn.TextColor3 = Color3.fromRGB(20,20,20)
-setBtn.BackgroundColor3 = Color3.fromRGB(140,110,255)
-setBtn.BorderSizePixel = 0
-
-local resetBtn = Instance.new("TextButton", walkSec)
-resetBtn.Size = UDim2.new(1, -20, 0, 28)
-resetBtn.Position = UDim2.new(0, 10, 0, 72 + 36)
-resetBtn.Text = "Reset Speed"
-resetBtn.Font = Enum.Font.GothamBold
-resetBtn.TextSize = 12
-resetBtn.TextColor3 = Color3.fromRGB(20,20,20)
-resetBtn.BackgroundColor3 = Color3.fromRGB(200,200,200)
-resetBtn.BorderSizePixel = 0
-
--- Infinite jump
-local jumpSec = makePlayerSection(playerScroll, "🕊️ Infinite Jump", 5 + walkSec.Size.Y.Offset + 10)
-jumpSec.Size = UDim2.new(1,-10,0,100)
-local jumpToggle = Instance.new("TextButton", jumpSec)
-jumpToggle.Size = UDim2.new(1,-20,0,36)
-jumpToggle.Position = UDim2.new(0,10,0,36)
-jumpToggle.Text = "Toggle Infinite Jump (OFF)"
-jumpToggle.Font = Enum.Font.GothamBold
-jumpToggle.TextSize = 14
-jumpToggle.TextColor3 = Color3.fromRGB(255,255,255)
-jumpToggle.BackgroundColor3 = Color3.fromRGB(55,55,90)
-jumpToggle.BorderSizePixel = 0
-
-updatePlayerCanvas()
-
--- WalkSpeed functions
-local function applyWalkSpeedToHumanoid(humanoid)
-    if humanoid and humanoid.Health > 0 then
-        humanoid.WalkSpeed = savedWalkSpeed or DEFAULT_WALKSPEED
-    end
-end
-
-local function setWalkSpeedFromText(text)
-    local n = tonumber(text)
-    if not n then return false end
-    if n < 1 or n > 100 then return false end
-    savedWalkSpeed = n
-    if player.Character then
-        local h = player.Character:FindFirstChildOfClass("Humanoid")
-        if h then applyWalkSpeedToHumanoid(h) end
-    end
-    return true
-end
-
-setBtn.MouseButton1Click:Connect(function()
-    playClickSound()
-    local ok = setWalkSpeedFromText(speedBox.Text)
-    if not ok then
-        local orig = speedBox.BackgroundColor3
-        speedBox.BackgroundColor3 = Color3.fromRGB(255,180,180)
-        task.delay(0.6, function() speedBox.BackgroundColor3 = orig end)
-    end
-end)
-
-resetBtn.MouseButton1Click:Connect(function()
-    playClickSound()
-    savedWalkSpeed = DEFAULT_WALKSPEED
-    speedBox.Text = ""
-    if player.Character then
-        local h = player.Character:FindFirstChildOfClass("Humanoid")
-        if h then applyWalkSpeedToHumanoid(h) end
-    end
-end)
-
-player.CharacterAdded:Connect(function(char)
-    local h = char:WaitForChild("Humanoid", 5)
-    if h then
-        task.delay(0.1, function() applyWalkSpeedToHumanoid(h) end)
-    end
-end)
-
--- Infinite jump logic
-local function setInfiniteJump(enabled)
-    infiniteJumpEnabled = enabled
-    if enabled then
-        jumpToggle.BackgroundColor3 = Color3.fromRGB(120,100,255)
-        jumpToggle.Text = "Toggle Infinite Jump (ON)"
-    else
-        jumpToggle.BackgroundColor3 = Color3.fromRGB(55,55,90)
-        jumpToggle.Text = "Toggle Infinite Jump (OFF)"
-    end
-end
-
-setInfiniteJump(false)
-
-jumpToggle.MouseButton1Click:Connect(function()
-    playClickSound()
-    setInfiniteJump(not infiniteJumpEnabled)
-end)
-
-UserInputService.JumpRequest:Connect(function()
-    if not infiniteJumpEnabled then return end
-    local char = player.Character
-    if not char then return end
-    local h = char:FindFirstChildOfClass("Humanoid")
-    if not h then return end
-    h:ChangeState(Enum.HumanoidStateType.Jumping)
-end)
-
--- Ultra-fast auto-buy loop
+-- ✅ Optimized Auto-Buy (Anti Ping Spike)
 task.spawn(function()
-    while task.wait(0.01) do
+    while task.wait(0.05) do
         if autoBuy then
-            -- Seeds
-            for seed,_ in pairs(selectedSeeds) do
-                if buySeedEvent then
-                    pcall(function()
-                        for i = 1, buysPerItem do
-                            buySeedEvent:FireServer(seed .. " Seed", true)
-                        end
-                    end)
+            local allTasks = {}
+
+            for seed, _ in pairs(selectedSeeds) do
+                if buySeedRemote then
+                    for i = 1, buysPerItem do
+                        table.insert(allTasks, function()
+                            pcall(function()
+                                buySeedRemote:FireServer(seed, true)
+                            end)
+                        end)
+                    end
                 end
             end
-            -- Gears
-            for gear,_ in pairs(selectedGears) do
-                if buyGearEvent then
-                    pcall(function()
-                        for i = 1, buysPerItem do
-                            buyGearEvent:FireServer(gear, true)
-                        end
-                    end)
+
+            for gear, _ in pairs(selectedGears) do
+                if buyGearRemote then
+                    for i = 1, buysPerItem do
+                        table.insert(allTasks, function()
+                            pcall(function()
+                                buyGearRemote:FireServer(gear, true)
+                            end)
+                        end)
+                    end
+                end
+            end
+
+            for i, fn in ipairs(allTasks) do
+                fn()
+                if i % 3 == 0 then
+                    task.wait() -- yield slightly every 3 calls
                 end
             end
         end
@@ -456,7 +314,7 @@ startBtn.MouseButton1Click:Connect(function()
     startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
 end)
 
--- Minimizing & Logo
+-- Minimize & drag
 local logo = Instance.new("TextButton", gui)
 logo.Size = UDim2.new(0,50,0,50)
 logo.Position = UDim2.new(0.5, -25, 0.4, -25)
@@ -501,7 +359,6 @@ local function makeDraggable(obj, dragHandle)
         obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
             startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-
     dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -512,7 +369,6 @@ local function makeDraggable(obj, dragHandle)
             end)
         end
     end)
-
     dragHandle.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             update(input)
@@ -523,13 +379,9 @@ end
 makeDraggable(frame, header)
 makeDraggable(logo, logo)
 
--- apply saved walk speed
 if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
     player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
 end
 
--- initial layout
 recalcPositions()
-updatePlayerCanvas()
-
-print("FYNX HUB loaded")
+print("FYNX HUB loaded - Optimized Fast Auto Buy enabled (no ping spikes)")

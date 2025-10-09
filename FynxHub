@@ -1,94 +1,124 @@
--- // FYNX HUB GUI //
-if game.CoreGui:FindFirstChild("FYNX_HUB") then
-    game.CoreGui.FYNX_HUB:Destroy()
-end
+-- FYNX HUB (Optimized - No Lag)
+-- Fast Auto Buy (safe version)
+-- No WalkSpeed / Infinite Jump / Click Sound
 
-local player = game.Players.LocalPlayer
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
--- // Create main ScreenGui //
+local player = Players.LocalPlayer
+if not player then
+    warn("FYNX HUB: must run as LocalScript")
+    return
+end
+
+local function waitForChildTimeout(parent, name, timeout)
+    local start = tick()
+    while tick() - start < (timeout or 5) do
+        local v = parent:FindFirstChild(name)
+        if v then return v end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+local remotesFolder = waitForChildTimeout(ReplicatedStorage, "Remotes", 3)
+local buySeedRemote = remotesFolder and remotesFolder:FindFirstChild("BuyItem") or nil
+local buyGearRemote = remotesFolder and remotesFolder:FindFirstChild("BuyGear") or nil
+if not remotesFolder then
+    warn("FYNX HUB: ReplicatedStorage.Remotes not found.")
+elseif not buySeedRemote or not buyGearRemote then
+    warn("FYNX HUB: BuyItem or BuyGear not found.")
+end
+
+local seeds = {"Cactus","Strawberry","Pumpkin","Sunflower","Dragonfruit","Eggplant","Watermelon","Grape","Cocotank","Carnivorous Plant","Mr Carrot","Tomatrio","Shroombino","Mango"}
+local gears = {"Water Bucket","Frost Grenade","Banana Gun","Carrot Launcher","Frost Blower"}
+
+local selectedSeeds, selectedGears = {}, {}
+local autoBuy = false
+local minimized = false
+local buysPerItem = 5
+local safeDelay = 0.2 -- delay between auto-buys to prevent ping spikes
+
+local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
+
 local gui = Instance.new("ScreenGui")
-gui.Name = "FYNX_HUB"
-gui.Parent = game.CoreGui
+gui.Name = "FYNX_HUB_GUI"
 gui.ResetOnSpawn = false
+gui.Parent = parentGui
 
--- // Main Frame //
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 340, 0, 250)
-frame.Position = UDim2.new(0.5, -170, 0.5, -125)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-frame.Active = true
+frame.Size = UDim2.new(0, 320, 0, 380)
+frame.Position = UDim2.new(0.5, -160, 0.35, -100)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,40)
 frame.BorderSizePixel = 0
+frame.Active = true
 
-local uicorner = Instance.new("UICorner", frame)
-uicorner.CornerRadius = UDim.new(0, 12)
-
--- // Header //
-local header = Instance.new("TextLabel", frame)
-header.Size = UDim2.new(1, 0, 0, 35)
-header.BackgroundColor3 = Color3.fromRGB(50, 50, 90)
-header.Text = "⚡ FYNX HUB"
-header.Font = Enum.Font.GothamBold
-header.TextSize = 18
-header.TextColor3 = Color3.fromRGB(255, 255, 255)
+local header = Instance.new("Frame", frame)
+header.Size = UDim2.new(1,0,0,40)
+header.BackgroundColor3 = Color3.fromRGB(95,75,200)
 header.BorderSizePixel = 0
 
-local headerCorner = Instance.new("UICorner", header)
-headerCorner.CornerRadius = UDim.new(0, 12)
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(1,-50,1,0)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "FYNX HUB"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
 
--- // Close Button //
-local closeBtn = Instance.new("TextButton", header)
-closeBtn.Size = UDim2.new(0, 35, 0, 35)
-closeBtn.Position = UDim2.new(1, -40, 0, 0)
-closeBtn.BackgroundTransparency = 1
-closeBtn.Text = "✖"
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 18
-closeBtn.TextColor3 = Color3.fromRGB(255, 120, 120)
+local minBtn = Instance.new("TextButton", header)
+minBtn.Size = UDim2.new(0,36,0,28)
+minBtn.Position = UDim2.new(1,-46,0,6)
+minBtn.BackgroundColor3 = Color3.fromRGB(120,100,255)
+minBtn.Text = "-"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minBtn.BorderSizePixel = 0
 
-closeBtn.MouseButton1Click:Connect(function()
-    gui:Destroy()
-end)
+local tabButtons = Instance.new("Frame", frame)
+tabButtons.Size = UDim2.new(1,0,0,36)
+tabButtons.Position = UDim2.new(0,0,0,42)
+tabButtons.BackgroundColor3 = Color3.fromRGB(30,30,55)
+tabButtons.BorderSizePixel = 0
 
--- // Tab Buttons //
-local tabHolder = Instance.new("Frame", frame)
-tabHolder.Size = UDim2.new(0, 100, 1, -35)
-tabHolder.Position = UDim2.new(0, 0, 0, 35)
-tabHolder.BackgroundColor3 = Color3.fromRGB(40, 40, 70)
-tabHolder.BorderSizePixel = 0
-
-local tabCorner = Instance.new("UICorner", tabHolder)
-tabCorner.CornerRadius = UDim.new(0, 12)
-
--- // Tab Content Frame //
-local tabFrame = Instance.new("Frame", frame)
-tabFrame.Size = UDim2.new(1, -110, 1, -45)
-tabFrame.Position = UDim2.new(0, 110, 0, 40)
-tabFrame.BackgroundTransparency = 1
-
--- // Tabs //
-local tabs = {}
-local function createTabButton(name)
-    local btn = Instance.new("TextButton", tabHolder)
-    btn.Size = UDim2.new(1, 0, 0, 35)
-    btn.BackgroundTransparency = 1
-    btn.Text = name
+local function createTabButton(text, xPos)
+    local btn = Instance.new("TextButton", tabButtons)
+    btn.Size = UDim2.new(0.5, -10, 1, -6)
+    btn.Position = UDim2.new(xPos, 5, 0, 3)
+    btn.BackgroundColor3 = Color3.fromRGB(80,70,160)
+    btn.Text = text
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
     btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.BorderSizePixel = 0
     return btn
 end
 
-tabs["Player"] = createTabButton("Player")
-tabs["Auto"] = createTabButton("Auto")
-tabs["Discord"] = createTabButton("Discord")
+local homeBtn = createTabButton("🏠 Home", 0)
+local playerBtn = createTabButton("👤 Player", 0.5)
 
--- // PLAYER TAB //
+local tabFrame = Instance.new("Frame", frame)
+tabFrame.Size = UDim2.new(1,-20,1,-120)
+tabFrame.Position = UDim2.new(0,10,0,80)
+tabFrame.BackgroundColor3 = Color3.fromRGB(30,30,55)
+tabFrame.BorderSizePixel = 0
+
+local homeScroll = Instance.new("ScrollingFrame", tabFrame)
+homeScroll.Size = UDim2.new(1,-8,1,0)
+homeScroll.Position = UDim2.new(0,4,0,0)
+homeScroll.CanvasSize = UDim2.new(0,0,0,0)
+homeScroll.ScrollBarThickness = 6
+homeScroll.BackgroundTransparency = 1
+
 local playerTab = Instance.new("Frame", tabFrame)
 playerTab.Size = UDim2.new(1,-8,1,0)
 playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
-playerTab.Visible = true
+playerTab.Visible = false
 
 local comingSoonLabel = Instance.new("TextLabel", playerTab)
 comingSoonLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -102,117 +132,204 @@ comingSoonLabel.TextStrokeTransparency = 0.8
 comingSoonLabel.TextYAlignment = Enum.TextYAlignment.Center
 comingSoonLabel.TextXAlignment = Enum.TextXAlignment.Center
 
--- // AUTO TAB //
-local autoTab = Instance.new("Frame", tabFrame)
-autoTab.Size = UDim2.new(1,-8,1,0)
-autoTab.Position = UDim2.new(0,4,0,0)
-autoTab.BackgroundTransparency = 1
-autoTab.Visible = false
+local function createCollapsible(parent, titleText, items, selectedTable)
+    local container = Instance.new("Frame", parent)
+    container.Size = UDim2.new(1,-10,0,32)
+    container.Position = UDim2.new(0,5,0,0)
+    container.BackgroundTransparency = 1
 
-local autoLabel = Instance.new("TextLabel", autoTab)
-autoLabel.Size = UDim2.new(1, 0, 0, 24)
-autoLabel.Position = UDim2.new(0, 10, 0, 10)
-autoLabel.BackgroundTransparency = 1
-autoLabel.Text = "⚙️ Auto Features"
-autoLabel.Font = Enum.Font.GothamBold
-autoLabel.TextSize = 16
-autoLabel.TextColor3 = Color3.fromRGB(255,255,255)
-autoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    local headerBtn = Instance.new("TextButton", container)
+    headerBtn.Size = UDim2.new(1,0,0,32)
+    headerBtn.BackgroundColor3 = Color3.fromRGB(95,75,200)
+    headerBtn.Font = Enum.Font.GothamBold
+    headerBtn.TextSize = 14
+    headerBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    headerBtn.Text = titleText
+    headerBtn.BorderSizePixel = 0
 
-local autoBuy = Instance.new("TextButton", autoTab)
-autoBuy.Size = UDim2.new(1,-20,0,30)
-autoBuy.Position = UDim2.new(0,10,0,50)
-autoBuy.BackgroundColor3 = Color3.fromRGB(255,180,90)
-autoBuy.Text = "💰 Auto Buy: OFF"
-autoBuy.Font = Enum.Font.GothamBold
-autoBuy.TextSize = 14
-autoBuy.TextColor3 = Color3.fromRGB(0,0,0)
-autoBuy.BorderSizePixel = 0
+    local list = Instance.new("ScrollingFrame", container)
+    list.Size = UDim2.new(1,0,0,0)
+    list.Position = UDim2.new(0,0,0,36)
+    list.BackgroundTransparency = 1
+    list.ScrollBarThickness = 6
+    list.CanvasSize = UDim2.new(0,0,0,#items * 28)
+    list.Visible = false
 
--- // Optimized Auto Buy Code //
-local autoBuyEnabled = false
-autoBuy.MouseButton1Click:Connect(function()
-    autoBuyEnabled = not autoBuyEnabled
-    autoBuy.Text = autoBuyEnabled and "💰 Auto Buy: ON" or "💰 Auto Buy: OFF"
+    for i, name in ipairs(items) do
+        local btn = Instance.new("TextButton", list)
+        btn.Size = UDim2.new(1,-10,0,26)
+        btn.Position = UDim2.new(0,5,0,(i-1)*28)
+        btn.BackgroundColor3 = Color3.fromRGB(55,55,90)
+        btn.TextColor3 = Color3.fromRGB(235,235,255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 13
+        btn.Text = name
+        btn.BorderSizePixel = 0
 
-    task.spawn(function()
-        while autoBuyEnabled do
-            local success, err = pcall(function()
-                -- ⚠️ Replace this with your actual buy RemoteEvent
-                -- Example: game.ReplicatedStorage.Remotes.BuyItem:FireServer()
-                game:GetService("ReplicatedStorage").RemoteEvent:FireServer("Buy")
-            end)
-
-            if not success then
-                warn("Auto Buy error: " .. tostring(err))
+        btn.MouseButton1Click:Connect(function()
+            if selectedTable[name] then
+                selectedTable[name] = nil
+                btn.BackgroundColor3 = Color3.fromRGB(55,55,90)
+            else
+                selectedTable[name] = true
+                btn.BackgroundColor3 = Color3.fromRGB(120,100,255)
             end
+        end)
+    end
 
-            task.wait(0.3) -- ✅ Smooth, no lag
+    return container, headerBtn, list
+end
+
+local seedSection, seedHeader, seedList = createCollapsible(homeScroll, "🌱 Seeds", seeds, selectedSeeds)
+local gearSection, gearHeader, gearList = createCollapsible(homeScroll, "⚙️ Gears", gears, selectedGears)
+
+local function recalcPositions()
+    local y = 5
+    for _, sec in ipairs({seedSection, gearSection}) do
+        sec.Position = UDim2.new(0,5,0,y)
+        local ht = sec.AbsoluteSize.Y
+        if ht == 0 then ht = sec.Size.Y.Offset end
+        y = y + ht + 5
+    end
+    task.delay(0.05, function()
+        local total = 10
+        for _, c in ipairs(homeScroll:GetChildren()) do
+            if c:IsA("Frame") then
+                total = total + c.AbsoluteSize.Y + 5
+            end
         end
+        homeScroll.CanvasSize = UDim2.new(0,0,0, math.max(total, homeScroll.AbsoluteSize.Y + 10))
     end)
+end
+
+local function toggleList(list, container)
+    local willExpand = not list.Visible
+    local targetHeight = willExpand and math.min(list.CanvasSize.Y.Offset + 10, 160) or 0
+    if willExpand then list.Visible = true end
+    TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,targetHeight)}):Play()
+    task.delay(0.3, function()
+        if not willExpand then list.Visible = false end
+        container.Size = UDim2.new(1,-10,0,36 + targetHeight)
+        recalcPositions()
+    end)
+end
+
+seedHeader.MouseButton1Click:Connect(function() toggleList(seedList, seedSection) end)
+gearHeader.MouseButton1Click:Connect(function() toggleList(gearList, gearSection) end)
+task.delay(0.05, recalcPositions)
+
+-- SAFE AUTO BUY LOOP
+task.spawn(function()
+    while task.wait(safeDelay) do
+        if autoBuy then
+            for seed, _ in pairs(selectedSeeds) do
+                if buySeedRemote then
+                    for i = 1, buysPerItem do
+                        pcall(function()
+                            buySeedRemote:FireServer(seed, true)
+                        end)
+                    end
+                end
+            end
+            for gear, _ in pairs(selectedGears) do
+                if buyGearRemote then
+                    for i = 1, buysPerItem do
+                        pcall(function()
+                            buyGearRemote:FireServer(gear, true)
+                        end)
+                    end
+                end
+            end
+        end
+    end
 end)
 
--- // DISCORD TAB //
-local discordTab = Instance.new("Frame", tabFrame)
-discordTab.Size = UDim2.new(1,-8,1,0)
-discordTab.Position = UDim2.new(0,4,0,0)
-discordTab.BackgroundTransparency = 1
-discordTab.Visible = false
-
-local discordBtn = Instance.new("TextButton", discordTab)
-discordBtn.Size = UDim2.new(1,-20,0,32)
-discordBtn.Position = UDim2.new(0,10,0,10)
-discordBtn.BackgroundColor3 = Color3.fromRGB(90,110,255)
-discordBtn.Text = "Join our Discord 🔗"
+local discordBtn = Instance.new("TextButton", frame)
+discordBtn.Size = UDim2.new(1,-20,0,28)
+discordBtn.Position = UDim2.new(0,10,1,-82)
+discordBtn.BackgroundColor3 = Color3.fromRGB(80,80,255)
+discordBtn.Text = "Join Discord"
 discordBtn.Font = Enum.Font.GothamBold
 discordBtn.TextSize = 14
 discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
 discordBtn.BorderSizePixel = 0
-
 discordBtn.MouseButton1Click:Connect(function()
-    setclipboard("https://discord.gg/YOURSERVER")
+    pcall(function() setclipboard("https://discord.gg/ReGmGrQT") end)
 end)
 
--- // Tab Switching //
-for name, button in pairs(tabs) do
-    button.MouseButton1Click:Connect(function()
-        for _, tab in pairs(tabFrame:GetChildren()) do
-            if tab:IsA("Frame") then
-                tab.Visible = false
-            end
+local startBtn = Instance.new("TextButton", frame)
+startBtn.Size = UDim2.new(1,-20,0,36)
+startBtn.Position = UDim2.new(0,10,1,-46)
+startBtn.BackgroundColor3 = Color3.fromRGB(140,110,255)
+startBtn.Text = "▶ Start Auto Buy"
+startBtn.Font = Enum.Font.GothamBold
+startBtn.TextSize = 14
+startBtn.TextColor3 = Color3.fromRGB(20,20,20)
+startBtn.BorderSizePixel = 0
+startBtn.MouseButton1Click:Connect(function()
+    autoBuy = not autoBuy
+    startBtn.Text = autoBuy and "🛑 Stop Auto Buy" or "▶ Start Auto Buy"
+end)
+
+local logo = Instance.new("TextButton", gui)
+logo.Size = UDim2.new(0,50,0,50)
+logo.Position = UDim2.new(0.5, -25, 0.4, -25)
+logo.Text = "F"
+logo.Font = Enum.Font.GothamBold
+logo.TextSize = 24
+logo.TextColor3 = Color3.fromRGB(255,255,255)
+logo.BackgroundColor3 = Color3.fromRGB(95,75,200)
+logo.BorderSizePixel = 0
+logo.Visible = false
+logo.MouseButton1Click:Connect(function()
+    minimized = false
+    frame.Visible = true
+    logo.Visible = false
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    frame.Visible = not minimized
+    logo.Visible = minimized
+end)
+
+homeBtn.MouseButton1Click:Connect(function()
+    homeScroll.Visible = true
+    playerTab.Visible = false
+end)
+playerBtn.MouseButton1Click:Connect(function()
+    playerTab.Visible = true
+    homeScroll.Visible = false
+end)
+
+local function makeDraggable(obj, dragHandle)
+    local dragging, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
         end
-        playerTab.Visible = (name == "Player")
-        autoTab.Visible = (name == "Auto")
-        discordTab.Visible = (name == "Discord")
+    end)
+
+    dragHandle.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
     end)
 end
 
--- // Make the frame draggable (PC + Mobile) //
-local dragging = false
-local dragStart, startPos
+makeDraggable(frame, header)
+makeDraggable(logo, logo)
 
-local function updateDrag(input)
-    local delta = input.Position - dragStart
-    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = frame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-header.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        updateDrag(input)
-    end
-end)
-
-print("✅ FYNX HUB loaded successfully.")
+recalcPositions()
+print("✅ FYNX HUB loaded - Optimized Auto Buy (No Lag)")

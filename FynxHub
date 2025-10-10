@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 if not player then
@@ -47,6 +48,33 @@ local DEFAULT_WALKSPEED = 16
 local savedWalkSpeed = DEFAULT_WALKSPEED
 local infiniteJumpEnabled = false
 
+-- local settings save/load
+local function saveSettings()
+    local data = {
+        seeds = selectedSeeds,
+        gears = selectedGears,
+        walkSpeed = savedWalkSpeed,
+        infiniteJump = infiniteJumpEnabled
+    }
+    if pcall(function() writefile("FYNX_HUB_Settings.json", HttpService:JSONEncode(data)) end) then
+        print("FYNX HUB: Settings saved.")
+    end
+end
+
+local function loadSettings()
+    if pcall(function() readfile("FYNX_HUB_Settings.json") end) then
+        local data = HttpService:JSONDecode(readfile("FYNX_HUB_Settings.json"))
+        if data then
+            selectedSeeds = data.seeds or {}
+            selectedGears = data.gears or {}
+            savedWalkSpeed = data.walkSpeed or DEFAULT_WALKSPEED
+            infiniteJumpEnabled = data.infiniteJump or false
+        end
+    end
+end
+
+loadSettings()
+
 -- click sound
 local function playClickSound()
     local s = Instance.new("Sound")
@@ -59,6 +87,7 @@ end
 
 -- GUI
 local parentGui = player:FindFirstChild("PlayerGui") or ((gethui and gethui()) or game:GetService("CoreGui"))
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "FYNX_HUB_GUI"
 gui.ResetOnSpawn = false
@@ -142,7 +171,78 @@ playerTab.Position = UDim2.new(0,4,0,0)
 playerTab.BackgroundTransparency = 1
 playerTab.Visible = false
 
--- collapsible lists
+-- WalkSpeed slider
+local walkSpeedLabel = Instance.new("TextLabel", playerTab)
+walkSpeedLabel.Size = UDim2.new(0, 150, 0, 30)
+walkSpeedLabel.Position = UDim2.new(0, 10, 0, 10)
+walkSpeedLabel.BackgroundTransparency = 1
+walkSpeedLabel.Text = "WalkSpeed: "..savedWalkSpeed
+walkSpeedLabel.TextColor3 = Color3.fromRGB(255,255,255)
+walkSpeedLabel.Font = Enum.Font.GothamBold
+walkSpeedLabel.TextSize = 14
+
+local walkSpeedSlider = Instance.new("TextButton", playerTab)
+walkSpeedSlider.Size = UDim2.new(0, 300, 0, 20)
+walkSpeedSlider.Position = UDim2.new(0,10,0,45)
+walkSpeedSlider.BackgroundColor3 = Color3.fromRGB(80,80,160)
+walkSpeedSlider.Text = ""
+walkSpeedSlider.BorderSizePixel = 0
+
+local fillBar = Instance.new("Frame", walkSpeedSlider)
+fillBar.Size = UDim2.new((savedWalkSpeed-16)/84,0,1,0)
+fillBar.BackgroundColor3 = Color3.fromRGB(120,100,255)
+
+-- Slider drag
+local draggingSlider = false
+walkSpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = true
+    end
+end)
+walkSpeedSlider.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingSlider = false
+        saveSettings()
+    end
+end)
+walkSpeedSlider.InputChanged:Connect(function(input)
+    if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        local relative = math.clamp(input.Position.X - walkSpeedSlider.AbsolutePosition.X, 0, walkSpeedSlider.AbsoluteSize.X)
+        local speed = math.floor(16 + (relative / walkSpeedSlider.AbsoluteSize.X) * 84)
+        savedWalkSpeed = speed
+        fillBar.Size = UDim2.new((speed-16)/84,0,1,0)
+        walkSpeedLabel.Text = "WalkSpeed: "..speed
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = speed
+        end
+    end
+end)
+
+-- Infinite Jump toggle
+local infJumpBtn = Instance.new("TextButton", playerTab)
+infJumpBtn.Size = UDim2.new(0,120,0,30)
+infJumpBtn.Position = UDim2.new(0,10,0,80)
+infJumpBtn.BackgroundColor3 = Color3.fromRGB(80,80,160)
+infJumpBtn.TextColor3 = Color3.fromRGB(255,255,255)
+infJumpBtn.Font = Enum.Font.GothamBold
+infJumpBtn.TextSize = 14
+infJumpBtn.Text = infiniteJumpEnabled and "Infinite Jump: ON" or "Infinite Jump: OFF"
+infJumpBtn.BorderSizePixel = 0
+
+infJumpBtn.MouseButton1Click:Connect(function()
+    infiniteJumpEnabled = not infiniteJumpEnabled
+    infJumpBtn.Text = infiniteJumpEnabled and "Infinite Jump: ON" or "Infinite Jump: OFF"
+    saveSettings()
+end)
+
+-- Infinite Jump logic
+game:GetService("UserInputService").JumpRequest:Connect(function()
+    if infiniteJumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").Jump = true
+    end
+end)
+
+-- collapsible lists (seeds/gears)
 local function createCollapsible(parent, titleText, items, selectedTable)
     local container = Instance.new("Frame", parent)
     container.Size = UDim2.new(1,-10,0,32)
@@ -184,6 +284,7 @@ local function createCollapsible(parent, titleText, items, selectedTable)
                 selectedTable[name] = true
                 btn.BackgroundColor3 = Color3.fromRGB(120,100,255)
             end
+            saveSettings()
         end)
     end
 
@@ -233,30 +334,25 @@ gearSection:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 homeScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(recalcPositions)
 task.delay(0.05, recalcPositions)
 
--- =========================
--- Auto-Buy (Seeds delayed, Gears instant)
--- =========================
+-- ✅ Optimized Auto-Buy (Seeds delayed, Gears instant)
 task.spawn(function()
     while task.wait(0.05) do
         if autoBuy then
             -- SEEDS with delay
-            for seed, _ in pairs(selectedSeeds) do
+            for seed,_ in pairs(selectedSeeds) do
                 if buySeedRemote then
                     for i = 1, buysPerItem do
-                        pcall(function()
-                            buySeedRemote:FireServer(seed, true)
-                        end)
-                        task.wait(0.05) -- delay for seeds
+                        pcall(function() buySeedRemote:FireServer(seed,true) end)
+                        task.wait(0.05)
                     end
                 end
             end
-
             -- GEARS instant
-            for gear, _ in pairs(selectedGears) do
+            for gear,_ in pairs(selectedGears) do
                 if buyGearRemote then
-                    pcall(function()
-                        buyGearRemote:FireServer(gear, true)
-                    end)
+                    for i = 1, buysPerItem do
+                        pcall(function() buyGearRemote:FireServer(gear,true) end)
+                    end
                 end
             end
         end
@@ -358,9 +454,10 @@ end
 makeDraggable(frame, header)
 makeDraggable(logo, logo)
 
+-- set walk speed on spawn
 if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
     player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = savedWalkSpeed
 end
 
 recalcPositions()
-print("FYNX HUB loaded - Optimized Fast Auto Buy enabled (seeds delayed, gears instant)")
+print("FYNX HUB loaded - Optimized Fast Auto Buy (Seeds delayed, Gears instant)")
